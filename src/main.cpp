@@ -9,6 +9,8 @@
 #include <crate/common/common.hpp>
 
 #include "networking/types.hpp"
+#include "services/registrar.hpp"
+#include "services/app.hpp"
 #include "services/data_submission.hpp"
 #include "services/metric_streamer.hpp"
 
@@ -46,13 +48,13 @@ namespace {
 //
 void handle_signal(int signal) {
 
+   active.store(false);
+
    if (handling_signal.load()) {
       return;
    }
 
    handling_signal.store(true);
-   active.store(false);
-
    std::cout << "\nExiting.." << std::endl;
 }
 
@@ -100,7 +102,7 @@ void load_configs(std::string file) {
    std::optional<std::string> registration_db_path = 
       tbl["monolith"]["registration_db_path"].value<std::string>();
    if (registration_db_path.has_value()) {
-      monolith_config.registration_db_path = *log_file_name;
+      monolith_config.registration_db_path = *registration_db_path;
    } else {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'registration_db_path'\n";
       std::exit(1);
@@ -118,7 +120,7 @@ void load_configs(std::string file) {
    std::optional<std::string> ipv4_address = 
       tbl["networking"]["ipv4_address"].value<std::string>();
    if (ipv4_address.has_value()) {
-      network_config.ipv4_address = *log_file_name;
+      network_config.ipv4_address = *ipv4_address;
    } else {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'ipv4_address'\n";
       std::exit(1);
@@ -127,7 +129,7 @@ void load_configs(std::string file) {
    std::optional<std::string> ipv6_address = 
       tbl["networking"]["ipv6_address"].value<std::string>();
    if (ipv6_address.has_value()) {
-      network_config.ipv6_address = *log_file_name;
+      network_config.ipv6_address = *ipv6_address;
    } else {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'ipv6_address'\n";
       std::exit(1);
@@ -165,10 +167,36 @@ void start_services() {
 
    LOG(INFO) << TAG("start_services") << "Starting services\n";
 
+   registrar_database = new monolith::db::kv_c(monolith_config.registration_db_path);
+
+   auto registrar = new monolith::services::registrar_c(
+      network_config.ipv4_address,
+      network_config.registration_port,
+      registrar_database
+   );
+
+   if (!registrar->start()) {
+      LOG(ERROR) << TAG("start_services") 
+                  << "Failed to start registrar server\n";
+      std::exit(1);
+   }
+
    auto metric_streamer = new monolith::services::metric_streamer_c();
 
    if (!metric_streamer->start()) {
       LOG(ERROR) << TAG("start_services") << "Failed to start metric streamer\n";
+      std::exit(1);
+   }
+
+   auto app_service = new monolith::services::app_c(
+      network_config.ipv4_address,
+      network_config.http_port,
+      metric_streamer
+   );
+
+   if (!app_service->start()) {
+      LOG(ERROR) << TAG("start_services") 
+                  << "Failed to start application server\n";
       std::exit(1);
    }
 
@@ -188,8 +216,10 @@ void start_services() {
       std::exit(1);
    }
 
+   services["registrar"] = registrar;
    services["data_submission"] = data_submission;
    services["metric_stream"] = metric_streamer;
+   services["application"] = app_service;
 }
 
 void stop_services() {
@@ -197,7 +227,7 @@ void stop_services() {
    LOG(INFO) << TAG("stop_services") << "Stopping services\n";
 
    for (auto& [service_name, service] : services) {
-      if (service->is_running()) {
+      if (service && service->is_running()) {
          if (!service->stop()) {
             LOG(ERROR) << TAG("stop_services") 
                         << "Failed to stop service : " 
@@ -205,6 +235,10 @@ void stop_services() {
                         << "\n";
          }
       }
+   }
+
+   if (registrar_database) {
+      delete registrar_database;
    }
 }
 

@@ -9,6 +9,13 @@ kv_c::kv_c(const std::string& db_location)
 
 }
 
+kv_c::~kv_c() {
+   if (_db) {
+      _db->Close();
+      delete _db;
+   }
+}
+
 bool kv_c::exists(const std::string& key) {
    if (!ensure_open()) { return false; }
    

@@ -18,6 +18,9 @@ public:
    //! \param db_location The database location
    kv_c(const std::string& db_location);
 
+   //! \brief Close db and destroy object
+   ~kv_c();
+
    //! \brief Check if an item exists
    //! \param key The key to look for
    //! \returns true iff the item exists

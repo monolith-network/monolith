@@ -55,15 +55,16 @@ void metric_streamer_c::del_destination(const std::string& address, uint32_t por
    });
 }
 
-void metric_streamer_c::submit_metric(crate::metrics::sensor_reading_v1 metric)
+bool metric_streamer_c::submit_metric(crate::metrics::sensor_reading_v1 metric)
 {
    if (!_accepting_metrics.load()) {
       LOG(INFO) << TAG("metric_streamer_c::submit_metric") << "Not accepting metrics at this time\n";
-      return;
+      return false;
    }
 
    const std::lock_guard<std::mutex> lock(_metric_queue_mutex);
    _metric_queue.push(metric);
+   return true;
 }
 
 void metric_streamer_c::run() {
@@ -98,7 +99,7 @@ void metric_streamer_c::run() {
       // Thread sleep - Everything is in terms of seconds in operation so this won't hold
       // anything up, but it will keep the thread from grinding
       //
-      std::this_thread::sleep_for(100ms);
+      std::this_thread::sleep_for(1ms);
    }
 }
 
@@ -148,6 +149,7 @@ void metric_streamer_c::perform_destination_updates() {
                continue;
             } else {
                const std::lock_guard<std::mutex> lock(_stream_receivers_mutex);
+               LOG(INFO) << TAG("metric_streamer_c::perform_destination_updates") << "Added: " << update.entry.address << ":" << update.entry.port << "\n" ;
                _stream_receivers.push_back(update.entry);
             }
             break;
@@ -173,7 +175,7 @@ void metric_streamer_c::perform_metric_streaming() {
    {
       const std::lock_guard<std::mutex> lock(_stream_receivers_mutex);
       if (_stream_receivers.empty()) {
-         LOG(INFO) << TAG("metric_streamer_c::perform_metric_streaming") << "No receivers present\n";
+   //      LOG(INFO) << TAG("metric_streamer_c::perform_metric_streaming") << "No receivers present\n";
          return;
       }
    }
@@ -182,7 +184,7 @@ void metric_streamer_c::perform_metric_streaming() {
    {
       const std::lock_guard<std::mutex> lock(_metric_queue_mutex);
       if (_metric_queue.empty()) {
-         LOG(INFO) << TAG("metric_streamer_c::perform_metric_streaming") << "No metrics present\n";
+  //       LOG(INFO) << TAG("metric_streamer_c::perform_metric_streaming") << "No metrics present\n";
          return;
       }
    }
@@ -233,6 +235,7 @@ void metric_streamer_c::perform_metric_streaming() {
       //
       bool okay {false};
       auto writer = crate::networking::message_writer(destination.address, destination.port);
+
       writer.write(encoded_package, okay);
 
       // If the data fails to be written there is no action we can take. The endpoint might

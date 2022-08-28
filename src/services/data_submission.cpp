@@ -41,7 +41,7 @@ bool data_submission_c::start() {
    }
 
    p_running.store(true);
-   //p_thread = std::thread(&data_submission_c::run, this);
+   p_thread = std::thread(&data_submission_c::run, this);
 
    LOG(INFO) << TAG("data_submission_c::start") 
                << "Server started\n";
@@ -90,11 +90,15 @@ bool data_submission_c::stop() {
    return true;
 }
 
-// Unused until we need to do processing outside of
-// callbacks from nettle
 void data_submission_c::run() {
+   auto last_prune = std::chrono::high_resolution_clock::now();
+
    while(p_running.load()) {
       std::this_thread::sleep_for(500ms);
+
+      // Validate / submit metrics to database and streamers
+      //
+      submit_metrics();
    }
 }
 
@@ -214,22 +218,24 @@ void data_submission_c::submit_metrics() {
       //
       _database->store(entry.metric);
 
-      // Submit to stream server
+      // Submit to stream server - it may be stopped or otherwise not accepting metrics
+      // so we re enqueue it if thats the case
       //
-      _stream_server->submit_metric(entry.metric);
+      if (!_stream_server->submit_metric(entry.metric)) {
 
-      // Check to see if the submission attempts indicate that we need to drop the thing
-      if (entry.submission_attempts >= MAX_SUBMISSION_ATTEMPTS) {
-         LOG(INFO) << TAG("data_submission_c::submit_metrics") 
-                     << "Dropping metric (too many submission attempts)\n";
-         continue;
+         // Check to see if the submission attempts indicate that we need to drop the thing
+         if (entry.submission_attempts >= MAX_SUBMISSION_ATTEMPTS) {
+            LOG(INFO) << TAG("data_submission_c::submit_metrics") 
+                        << "Dropping metric (too many submission attempts)\n";
+            continue;
+         }
+
+         // If we reach here that means we can re-enqueue the metric for trying later
+         // but since we are doing a lot we put it in a different storage medium until
+         // we iterate through this entire burst. Once this burst is complete we will
+         // take the lock from the queue and re-enqueue them
+         re_enqueue.push_back(entry);
       }
-
-      // If we reach here that means we can re-enqueue the metric for trying later
-      // but since we are doing a lot we put it in a different storage medium until
-      // we iterate through this entire burst. Once this burst is complete we will
-      // take the lock from the queue and re-enqueue them
-      re_enqueue.push_back(entry);
    }
 
    // Now we need to see if we want to re-enqueue anything

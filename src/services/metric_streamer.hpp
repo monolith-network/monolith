@@ -21,9 +21,10 @@ public:
 
    //! \brief Submit a metric to be streamed to the registered destinations
    //!        if no destinations are registered the metric will be lost to time
+   //! \returns true iff the metric gets enqueues for send
    //! \note  This enqueues the metric to be streamed and may not come out immediatly,
    //!        but the metric will come out in the order they are put in
-   void submit_metric(crate::metrics::sensor_reading_v1 metric);
+   bool submit_metric(crate::metrics::sensor_reading_v1 metric);
    
    //! \brief Start the server
    //! \returns true iff the server is started

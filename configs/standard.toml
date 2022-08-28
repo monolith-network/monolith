@@ -1,0 +1,13 @@
+[monolith]
+instance_name = "monoloth_standard"
+log_file_name = "monolith"
+registration_db_path = "/tmp/monolith_registration.db"
+
+[networking]
+use_ipv6 = false
+ipv4_address = "127.0.0.1"
+ipv6_address = "::1"
+http_port = 8080
+metric_submission_port = 9000
+registration_port = 9001
+

@@ -10,14 +10,13 @@ using namespace std::chrono_literals;
 namespace monolith {
 namespace services {
 
-app_c::app_c(const std::string& address, 
-               uint32_t port, 
-               monolith::db::kv_c* db,
+app_c::app_c(monolith::networking::ipv4_host_port_s host_port,
+               monolith::db::kv_c* registrar_db,
                monolith::services::metric_streamer_c* metric_streamer,
                monolith::services::data_submission_c* data_submission)
-         : _address(address), 
-            _port(port), 
-            _registration_db(db), 
+         : _address(host_port.address), 
+            _port(host_port.port), 
+            _registration_db(registrar_db), 
             _metric_streamer(metric_streamer),
             _data_submission(data_submission){
    _app_server = new httplib::Server();

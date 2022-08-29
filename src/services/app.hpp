@@ -9,21 +9,29 @@
 #include "interfaces/service_if.hpp"
 #include "services/metric_streamer.hpp"
 #include "services/data_submission.hpp"
+#include "networking/types.hpp"
 
 #include <crate/registrar/cache.hpp>
 
 namespace monolith {
 namespace services {
 
+//! \brief Main web application
 class app_c : public service_if {
 public:
    app_c() = delete;
-   app_c(const std::string& address, 
-         uint32_t port,
-         monolith::db::kv_c* db,
+
+   //! \brief Construct the application
+   //! \param host_port The ipv4 connection information
+   //! \param registrar_db The registrar database 
+   //! \param metric_streamer Metric streaming service
+   //! \param data_submission Data submission service
+   app_c(monolith::networking::ipv4_host_port_s host_port,
+         monolith::db::kv_c* registrar_db,
          monolith::services::metric_streamer_c* metric_streamer,
          monolith::services::data_submission_c* data_submission);
 
+   // From service_if
    virtual bool start() override final;
    virtual bool stop() override final;
    

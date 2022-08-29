@@ -109,7 +109,9 @@ target_link_libraries(monolith
         ${NETTLE_LIBRARIES}
         ${SQLite3_LIBRARIES}
         Threads::Threads
-        rocksdb dl
+        rocksdb
+        dl
+        rt
         )
 
 #

@@ -183,8 +183,10 @@ void start_services() {
    }
 
    auto app_service = new monolith::services::app_c(
-      network_config.ipv4_address,
-      network_config.http_port,
+      monolith::networking::ipv4_host_port_s{
+         network_config.ipv4_address, 
+         network_config.http_port
+      },
       registrar_database,
       metric_streamer,
       data_submission

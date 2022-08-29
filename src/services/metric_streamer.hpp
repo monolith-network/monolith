@@ -9,6 +9,16 @@
 #include <crate/metrics/reading.hpp>
 #include "interfaces/service_if.hpp"
 
+/*
+   ABOUT:
+      The metric streamer servive takes in metrics from the data_submission service and
+      holds disperses them out to registered stream receivers. If no receivers are present
+      the metrics are held in memory (up to MAX_QUEUED_METRICS). Once a single receiver is 
+      registered the metrics are dumped to the endpoint. Metrics are sent out as soon
+      as receivers and metrics are present. This means receivers only get live data from
+      the time they register.
+*/
+
 namespace monolith {
 namespace services {
 
@@ -26,14 +36,6 @@ public:
    //!        but the metric will come out in the order they are put in
    bool submit_metric(crate::metrics::sensor_reading_v1 metric);
    
-   //! \brief Start the server
-   //! \returns true iff the server is started
-   virtual bool  start() override final;
-
-   //! \brief Stop the server
-   //! \returns true iff the server is stopped
-   virtual bool stop() override final;
-
    //! \brief Add a streaming destination
    //! \param address The destination address
    //! \param port The port 
@@ -46,6 +48,9 @@ public:
    //! \note This enqueues the destination to be deleted, and may take a moment
    void del_destination(const std::string& address, uint32_t port);
 
+   // From service_if
+   virtual bool  start() override final;
+   virtual bool stop() override final;
 private:
    /*
       Because outside influences can add/delete endpoints we need to guard against intentional or
@@ -60,6 +65,8 @@ private:
                                                              // single stream send
    static constexpr double INTERVAL_DESTINATION_UPDATE = 2.5;// Interval update period
    static constexpr double INTERVAL_STREAM_METRICS = 0.25;   // Interval send out metrics
+   static constexpr uint32_t MAX_QUEUED_METRICS = 500'000;   // Maximum number of metrics in memory
+   static constexpr uint32_t NUM_DROP_METRICS = 1000;        // Number of metrics to drop when MAX_QUEUED_METRICS is hit
 
    // We should only have a handful of endpoints to service (<10) realistically so we don't need
    // a fancy map or anything to ensure we can locate items to be added/removed too quickly
@@ -99,7 +106,7 @@ private:
    uint64_t _metric_sequence {0};   // Monotonically increasing sequence counter
 
    void run();
-
+   void check_purge();
    bool contains_endpoint(endpoint& e, size_t& idx);
    void perform_destination_updates();
    void perform_metric_streaming();

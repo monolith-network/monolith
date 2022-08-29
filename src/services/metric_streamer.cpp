@@ -100,6 +100,23 @@ void metric_streamer_c::run() {
       // anything up, but it will keep the thread from grinding
       //
       std::this_thread::sleep_for(1ms);
+
+      // Check to see if we need to purge metrics from memory
+      //
+      check_purge();
+   }
+}
+
+void metric_streamer_c::check_purge() {
+
+   const std::lock_guard<std::mutex> lock(_metric_queue_mutex);
+   if (_metric_queue.size() < MAX_QUEUED_METRICS) {
+      return;
+   }
+   
+   uint32_t removed {0};
+   while(removed++ < NUM_DROP_METRICS) {
+      _metric_queue.pop();
    }
 }
 

@@ -66,10 +66,10 @@ private:
 
    // Registrar endpoints
    //
-   void registrar_node_probe(const httplib::Request& req ,httplib:: Response &res);
-   void registrar_node_add(const httplib::Request& req ,httplib:: Response &res);
-   void registrar_node_fetch(const httplib::Request& req ,httplib:: Response &res);
-   void registrar_node_delete(const httplib::Request& req ,httplib:: Response &res);
+   void registrar_probe(const httplib::Request& req ,httplib:: Response &res);
+   void registrar_add(const httplib::Request& req ,httplib:: Response &res);
+   void registrar_fetch(const httplib::Request& req ,httplib:: Response &res);
+   void registrar_delete(const httplib::Request& req ,httplib:: Response &res);
 
    // Metric endpoints
    //

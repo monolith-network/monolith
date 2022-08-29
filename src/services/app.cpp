@@ -2,6 +2,7 @@
 
 #include <crate/externals/aixlog/logger.hpp>
 #include <crate/registrar/node_v1.hpp>
+#include <crate/registrar/controller_v1.hpp>
 #include <chrono>
 #include <sstream>
 
@@ -107,36 +108,36 @@ void app_c::setup_endpoints() {
    // ---------- [Registration DB Endpoints] ----------
 
    // Endpoint to probe for item in database
-   _app_server->Get(R"(/registrar/node/probe/(.*?))", 
-      std::bind(&app_c::registrar_node_probe, 
+   _app_server->Get(R"(/registrar/probe/(.*?))",
+      std::bind(&app_c::registrar_probe,
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
    
    // Endpoint to submit item to database
-   _app_server->Get(R"(/registrar/node/add/(.*?)/(.*?))", 
-      std::bind(&app_c::registrar_node_add, 
+   _app_server->Get(R"(/registrar/add/(.*?)/(.*?))",
+      std::bind(&app_c::registrar_add,
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
 
    // Endpoint to fetch item from database
-   _app_server->Get(R"(/registrar/node/fetch/(.*?))", 
-      std::bind(&app_c::registrar_node_fetch, 
+   _app_server->Get(R"(/registrar/fetch/(.*?))",
+      std::bind(&app_c::registrar_fetch,
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
 
    // Endpoint to delete item from database
-   _app_server->Get(R"(/registrar/node/delete/(.*?))", 
-      std::bind(&app_c::registrar_node_delete, 
+   _app_server->Get(R"(/registrar/delete/(.*?))",
+      std::bind(&app_c::registrar_delete,
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
 
    // Endpoint to delete item from database
-   _app_server->Get(R"(/metric/submit/(.*?))", 
-      std::bind(&app_c::metric_submit, 
+   _app_server->Get(R"(/metric/submit/(.*?))",
+      std::bind(&app_c::metric_submit,
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
@@ -239,13 +240,13 @@ void app_c::metric_stream_delete(const httplib::Request& req, httplib:: Response
        "application/json");
 }
 
-void app_c::registrar_node_probe(const httplib::Request& req, httplib::Response& res) {
+void app_c::registrar_probe(const httplib::Request& req, httplib::Response& res) {
    if (!valid_http_req(req, res, 2)) { return; }
    
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
 
-   LOG(DEBUG) << TAG("app_c::registrar_node_probe") << "Got key: " << key << "\n";
+   LOG(DEBUG) << TAG("app_c::registrar_probe") << "Got key: " << key << "\n";
 
    if (_registration_db->exists(key)) {
       res.set_content(
@@ -261,14 +262,14 @@ void app_c::registrar_node_probe(const httplib::Request& req, httplib::Response&
    );
 }
 
-void app_c::registrar_node_add(const httplib::Request& req, httplib::Response& res) {
+void app_c::registrar_add(const httplib::Request& req, httplib::Response& res) {
    if (!valid_http_req(req, res, 3)) { return; }
    
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
    auto value = std::string(req.matches[2]);
 
-   LOG(DEBUG) << TAG("app_c::registrar_node_add") 
+   LOG(DEBUG) << TAG("app_c::registrar_add") 
                << "k:" 
                << key 
                << "|v:" 
@@ -277,11 +278,16 @@ void app_c::registrar_node_add(const httplib::Request& req, httplib::Response& r
 
    crate::registrar::node_v1_c decoded_node;
    if (!decoded_node.decode_from(value)) {
-      res.set_content(
-         get_json_response(return_codes_e::BAD_REQUEST_400, 
-         "malformed node data"), 
-         "application/json");
-      return;
+
+      // Perhaps its a controller?
+      crate::registrar::controller_v1_c decoded_controller;
+      if (!decoded_controller.decode_from(value)) {
+         res.set_content(
+            get_json_response(return_codes_e::BAD_REQUEST_400, 
+            "malformed data"), 
+            "application/json");
+         return;
+      }
    }
 
    if (_registration_db->store(key, value)) {
@@ -296,12 +302,12 @@ void app_c::registrar_node_add(const httplib::Request& req, httplib::Response& r
       "application/json");
 }
 
-void app_c::registrar_node_fetch(const httplib::Request& req, httplib::Response& res) {
+void app_c::registrar_fetch(const httplib::Request& req, httplib::Response& res) {
    if (!valid_http_req(req, res, 2)) { return; }
 
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
-   LOG(DEBUG) << TAG("app_c::registrar_node_fetch") << "Got key: " << key << "\n";
+   LOG(DEBUG) << TAG("app_c::registrar_fetch") << "Got key: " << key << "\n";
 
    auto result = _registration_db->load(key);
    
@@ -317,12 +323,12 @@ void app_c::registrar_node_fetch(const httplib::Request& req, httplib::Response&
       "text/plain");
 }
 
-void app_c::registrar_node_delete(const httplib::Request& req, httplib::Response& res) {
+void app_c::registrar_delete(const httplib::Request& req, httplib::Response& res) {
    if (!valid_http_req(req, res, 2)) { return; }
 
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
-   LOG(DEBUG) << TAG("app_c::registrar_node_delete") << "Got key: " << key << "\n";
+   LOG(DEBUG) << TAG("app_c::registrar_delete") << "Got key: " << key << "\n";
 
    if (_registration_db->remove(key)) {
       res.set_content(

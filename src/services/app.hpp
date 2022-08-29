@@ -8,6 +8,7 @@
 #include "db/kv.hpp"
 #include "interfaces/service_if.hpp"
 #include "services/metric_streamer.hpp"
+#include "services/data_submission.hpp"
 
 #include <crate/registrar/cache.hpp>
 
@@ -20,7 +21,8 @@ public:
    app_c(const std::string& address, 
          uint32_t port,
          monolith::db::kv_c* db,
-         monolith::services::metric_streamer_c* metric_streamer);
+         monolith::services::metric_streamer_c* metric_streamer,
+         monolith::services::data_submission_c* data_submission);
 
    virtual bool start() override final;
    virtual bool stop() override final;
@@ -38,6 +40,7 @@ private:
    uint32_t _port {0};
    monolith::db::kv_c* _registration_db {nullptr};
    monolith::services::metric_streamer_c* _metric_streamer {nullptr};
+   monolith::services::data_submission_c* _data_submission {nullptr};
    httplib::Server* _app_server {nullptr};
 
    void setup_endpoints();
@@ -50,23 +53,19 @@ private:
 
    // Stream receiver registration and de-registration
    //
-   void add_metric_stream_endpoint(const httplib::Request& req, httplib:: Response& res);
-   void del_metric_stream_endpoint(const httplib::Request& req, httplib:: Response& res);
+   void metric_stream_add(const httplib::Request& req, httplib:: Response& res);
+   void metric_stream_delete(const httplib::Request& req, httplib:: Response& res);
 
-   // Registration database access
+   // Registrar endpoints
    //
-   void db_probe(const httplib::Request& req ,httplib:: Response &res);
-   void db_submit(const httplib::Request& req ,httplib:: Response &res);
-   void db_fetch(const httplib::Request& req ,httplib:: Response &res);
-   void db_remove(const httplib::Request& req ,httplib:: Response &res);
+   void registrar_node_probe(const httplib::Request& req ,httplib:: Response &res);
+   void registrar_node_add(const httplib::Request& req ,httplib:: Response &res);
+   void registrar_node_fetch(const httplib::Request& req ,httplib:: Response &res);
+   void registrar_node_delete(const httplib::Request& req ,httplib:: Response &res);
 
-   // Handlers for database access from endpoint methods
+   // Metric endpoints
    //
-   std::string run_probe(const std::string& key);
-   std::string run_submit(const std::string& key, const std::string& value);
-   std::tuple<std::string,
-      std::string> run_fetch(const std::string& key);
-   std::string run_remove(const std::string& key);
+   void metric_submit(const httplib::Request& req ,httplib:: Response &res);
 };
 
 } // namespace services

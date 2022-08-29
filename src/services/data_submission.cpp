@@ -102,6 +102,20 @@ void data_submission_c::run() {
    }
 }
 
+void data_submission_c::submit_data(crate::metrics::sensor_reading_v1& data) {
+   
+   LOG(INFO) << TAG("data_submission_c::submit_data") << "Got metric data\n";
+   
+   // Put the reading in the queue
+   {
+      const std::lock_guard<std::mutex> lock(_metric_queue_mutex);
+      _metric_queue.push({
+         .submission_attempts = 0,
+         .metric = data
+      });
+   }
+}
+
 void data_submission_c::receive_message(std::string metric_data) {
 
    LOG(INFO) << TAG("data_submission_c::receive_message") << metric_data << "\n";

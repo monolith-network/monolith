@@ -9,7 +9,6 @@
 #include <crate/common/common.hpp>
 
 #include "networking/types.hpp"
-#include "services/registrar.hpp"
 #include "services/app.hpp"
 #include "services/data_submission.hpp"
 #include "services/metric_streamer.hpp"
@@ -167,19 +166,6 @@ void start_services() {
       std::exit(1);
    }
 
-   auto app_service = new monolith::services::app_c(
-      network_config.ipv4_address,
-      network_config.http_port,
-      registrar_database,
-      metric_streamer
-   );
-
-   if (!app_service->start()) {
-      LOG(ERROR) << TAG("start_services") 
-                  << "Failed to start application server\n";
-      std::exit(1);
-   }
-
    auto data_submission = new monolith::services::data_submission_c(
       monolith::networking::ipv4_host_port_s{
          network_config.ipv4_address,
@@ -193,6 +179,20 @@ void start_services() {
    if (!data_submission->start()) {
       LOG(ERROR) << TAG("start_services") 
                   << "Failed to start data submission server\n";
+      std::exit(1);
+   }
+
+   auto app_service = new monolith::services::app_c(
+      network_config.ipv4_address,
+      network_config.http_port,
+      registrar_database,
+      metric_streamer,
+      data_submission
+   );
+
+   if (!app_service->start()) {
+      LOG(ERROR) << TAG("start_services") 
+                  << "Failed to start application server\n";
       std::exit(1);
    }
 

@@ -17,6 +17,7 @@
 namespace monolith {
 namespace services {
 
+// !\brief Create the data submission tool
 class data_submission_c : public service_if,
                           private crate::networking::message_receiver_if {
 public:
@@ -30,6 +31,8 @@ public:
 
    virtual bool start() override final;
    virtual bool stop() override final;
+
+   void submit_data(crate::metrics::sensor_reading_v1& data);
 
 private:
    static constexpr uint8_t MAX_METRICS_PER_BURST = 100;

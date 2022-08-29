@@ -1,6 +1,7 @@
 #include "app.hpp"
 
 #include <crate/externals/aixlog/logger.hpp>
+#include <crate/registrar/entry/node_v1.hpp>
 #include <chrono>
 #include <sstream>
 
@@ -12,11 +13,13 @@ namespace services {
 app_c::app_c(const std::string& address, 
                uint32_t port, 
                monolith::db::kv_c* db,
-               monolith::services::metric_streamer_c* metric_streamer)
+               monolith::services::metric_streamer_c* metric_streamer,
+               monolith::services::data_submission_c* data_submission)
          : _address(address), 
             _port(port), 
             _registration_db(db), 
-            _metric_streamer(metric_streamer){
+            _metric_streamer(metric_streamer),
+            _data_submission(data_submission){
    _app_server = new httplib::Server();
 }
 
@@ -77,14 +80,14 @@ void app_c::setup_endpoints() {
 
    // Endpoint to add metric stream destination
    _app_server->Get(R"(/metric/stream/add/(.*?)/(\d+))", 
-      std::bind(&app_c::add_metric_stream_endpoint, 
+      std::bind(&app_c::metric_stream_add, 
             this, 
             std::placeholders::_1, 
             std::placeholders::_2));
             
    // Endpoint to add metric stream destination
    _app_server->Get(R"(/metric/stream/delete/(.*?)/(\d+))", 
-      std::bind(&app_c::del_metric_stream_endpoint, 
+      std::bind(&app_c::metric_stream_delete, 
             this, 
             std::placeholders::_1, 
             std::placeholders::_2));
@@ -92,29 +95,36 @@ void app_c::setup_endpoints() {
    // ---------- [Registration DB Endpoints] ----------
 
    // Endpoint to probe for item in database
-   _app_server->Get(R"(/probe/(.*?))", 
-      std::bind(&app_c::db_probe, 
+   _app_server->Get(R"(/registrar/node/probe/(.*?))", 
+      std::bind(&app_c::registrar_node_probe, 
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
    
    // Endpoint to submit item to database
-   _app_server->Get(R"(/submit/(.*?)/(.*?))", 
-      std::bind(&app_c::db_submit, 
+   _app_server->Get(R"(/registrar/node/add/(.*?)/(.*?))", 
+      std::bind(&app_c::registrar_node_add, 
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
 
    // Endpoint to fetch item from database
-   _app_server->Get(R"(/fetch/(.*?))", 
-      std::bind(&app_c::db_fetch, 
+   _app_server->Get(R"(/registrar/node/fetch/(.*?))", 
+      std::bind(&app_c::registrar_node_fetch, 
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
 
    // Endpoint to delete item from database
-   _app_server->Get(R"(/delete/(.*?))", 
-      std::bind(&app_c::db_remove, 
+   _app_server->Get(R"(/registrar/node/delete/(.*?))", 
+      std::bind(&app_c::registrar_node_delete, 
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+
+   // Endpoint to delete item from database
+   _app_server->Get(R"(/metric/submit/(.*?))", 
+      std::bind(&app_c::metric_submit, 
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
@@ -157,7 +167,7 @@ void app_c::http_root(const httplib::Request& req, httplib:: Response& res) {
    res.set_content(body, "text/html");
 }
 
-void app_c::add_metric_stream_endpoint(const httplib::Request& req, httplib:: Response& res) {
+void app_c::metric_stream_add(const httplib::Request& req, httplib:: Response& res) {
 
    if (!valid_http_req(req, res, 3)) { return; }
 
@@ -187,7 +197,7 @@ void app_c::add_metric_stream_endpoint(const httplib::Request& req, httplib:: Re
        "application/json");
 }
 
-void app_c::del_metric_stream_endpoint(const httplib::Request& req, httplib:: Response& res) {
+void app_c::metric_stream_delete(const httplib::Request& req, httplib:: Response& res) {
    if (!valid_http_req(req, res, 3)) { return; }
    
    uint32_t port {0};
@@ -203,6 +213,7 @@ void app_c::del_metric_stream_endpoint(const httplib::Request& req, httplib:: Re
             "Invalid port given : " + req.matches[2].str()), 
          "application/json"
          );
+      return;
    }
 
    // Queue the item to be added
@@ -216,91 +227,123 @@ void app_c::del_metric_stream_endpoint(const httplib::Request& req, httplib:: Re
        "application/json");
 }
 
-void app_c::db_probe(const httplib::Request& req, httplib::Response& res) {
+void app_c::registrar_node_probe(const httplib::Request& req, httplib::Response& res) {
    if (!valid_http_req(req, res, 2)) { return; }
    
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
 
-   LOG(DEBUG) << TAG("app_c::db_probe") << "Got key: " << key << "\n";
+   LOG(DEBUG) << TAG("app_c::registrar_node_probe") << "Got key: " << key << "\n";
 
-   res.set_content(run_probe(key), "application/json");
+   if (_registration_db->exists(key)) {
+      res.set_content(
+         get_json_response(return_codes_e::OKAY, "found"), 
+         "application/json"
+      );
+      return;
+   }
+
+   res.set_content(
+      get_json_response(return_codes_e::OKAY, "not found"), 
+      "application/json"
+   );
 }
 
-void app_c::db_submit(const httplib::Request& req, httplib::Response& res) {
+void app_c::registrar_node_add(const httplib::Request& req, httplib::Response& res) {
    if (!valid_http_req(req, res, 3)) { return; }
    
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
    auto value = std::string(req.matches[2]);
 
-   LOG(DEBUG) << TAG("app_c::db_submit") << "Got key: " << key << "\n";
-   LOG(DEBUG) << TAG("app_c::db_submit") << "Got value: " << value << "\n";
+   LOG(DEBUG) << TAG("app_c::registrar_node_add") 
+               << "k:" 
+               << key 
+               << "|v:" 
+               << value 
+               << "\n";
 
-   res.set_content(run_submit(key, value), "application/json");
-}
-
-void app_c::db_fetch(const httplib::Request& req, httplib::Response& res) {
-   if (!valid_http_req(req, res, 2)) { return; }
-
-   auto endpoint = req.matches[0];
-   auto key = std::string(req.matches[1]);
-   LOG(DEBUG) << TAG("app_c::db_fetch") << "Got key: " << key << "\n";
-
-   auto [response, response_type] = run_fetch(key);
-
-   res.set_content(response, response_type);
-}
-
-void app_c::db_remove(const httplib::Request& req, httplib::Response& res) {
-   if (!valid_http_req(req, res, 2)) { return; }
-
-   auto endpoint = req.matches[0];
-   auto key = std::string(req.matches[1]);
-   LOG(DEBUG) << TAG("app_c::db_remove") << "Got key: " << key << "\n";
-
-   res.set_content(run_remove(key), "application/json");
-}
-
-std::string app_c::run_probe(const std::string& key) {
-
-   if (_registration_db->exists(key)) {
-      return get_json_response(return_codes_e::OKAY, "found");
+   crate::registrar::node_v1 decoded_node;
+   if (!decoded_node.decode_from(value)) {
+      res.set_content(
+         get_json_response(return_codes_e::BAD_REQUEST_400, 
+         "malformed node data"), 
+         "application/json");
+      return;
    }
-
-   return get_json_response(return_codes_e::OKAY, "not found");
-}
-
-std::string app_c::run_submit(const std::string& key, const std::string& value) {
 
    if (_registration_db->store(key, value)) {
-      return get_json_response(return_codes_e::OKAY, "success");
+      res.set_content(
+         get_json_response(return_codes_e::OKAY, "success"), 
+         "application/json");
+      return;
    }
 
-   return get_json_response(return_codes_e::INTERNAL_SERVER_500, "server error");
+   res.set_content(
+      get_json_response(return_codes_e::INTERNAL_SERVER_500, "server error"), 
+      "application/json");
 }
 
-std::tuple<std::string,
-      std::string> app_c::run_fetch(const std::string& key) {
+void app_c::registrar_node_fetch(const httplib::Request& req, httplib::Response& res) {
+   if (!valid_http_req(req, res, 2)) { return; }
+
+   auto endpoint = req.matches[0];
+   auto key = std::string(req.matches[1]);
+   LOG(DEBUG) << TAG("app_c::registrar_node_fetch") << "Got key: " << key << "\n";
 
    auto result = _registration_db->load(key);
    
    if (!result.has_value()) {
-      return {get_json_response(return_codes_e::OKAY, "not found"), "application/json"};
+      res.set_content(
+         get_json_response(return_codes_e::OKAY, "not found"), 
+         "application/json");
+      return;
    }
 
-   return {*result, "text/plain"};
+   res.set_content(
+      *result, 
+      "text/plain");
 }
 
-std::string app_c::run_remove(const std::string& key){
+void app_c::registrar_node_delete(const httplib::Request& req, httplib::Response& res) {
+   if (!valid_http_req(req, res, 2)) { return; }
+
+   auto endpoint = req.matches[0];
+   auto key = std::string(req.matches[1]);
+   LOG(DEBUG) << TAG("app_c::registrar_node_delete") << "Got key: " << key << "\n";
 
    if (_registration_db->remove(key)) {
-      return get_json_response(
-            return_codes_e::OKAY,
-            "success");
+      res.set_content(
+         get_json_response(return_codes_e::OKAY, "success"), 
+         "application/json");
+      return;
+   }
+   res.set_content(
+      get_json_response(return_codes_e::INTERNAL_SERVER_500, "server error"), 
+      "application/json");
+}
+
+void app_c::metric_submit(const httplib::Request& req, httplib::Response& res) {
+   if (!valid_http_req(req, res, 2)) { return; }
+
+   auto endpoint = req.matches[0];
+   auto metric = std::string(req.matches[1]);
+   LOG(TRACE) << TAG("app_c::metric_submit") << "Got metric: " << metric << "\n";
+
+   crate::metrics::sensor_reading_v1 decoded_metric;
+   if (!decoded_metric.decode_from(metric)) {
+      res.set_content(
+         get_json_response(return_codes_e::BAD_REQUEST_400, 
+         "malformed metric"), 
+         "application/json");
+      return;
    }
 
-   return get_json_response(return_codes_e::INTERNAL_SERVER_500, "server error");
+   _data_submission->submit_data(decoded_metric);
+
+   res.set_content(
+      get_json_response(return_codes_e::OKAY, "success"), 
+      "application/json");
 }
 
 

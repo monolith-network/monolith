@@ -11,8 +11,6 @@
 #include "services/data_submission.hpp"
 #include "networking/types.hpp"
 
-#include <crate/registrar/cache.hpp>
-
 namespace monolith {
 namespace services {
 

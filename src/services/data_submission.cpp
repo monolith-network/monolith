@@ -2,7 +2,7 @@
 
 #include <chrono>
 #include <crate/externals/aixlog/logger.hpp>
-#include <crate/registrar/entry/node_v1.hpp>
+#include <crate/registrar/node_v1.hpp>
 
 using namespace std::chrono_literals;
 

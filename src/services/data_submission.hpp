@@ -10,7 +10,7 @@
 #include "db/metric_db.hpp"
 #include "db/kv.hpp"
 
-#include <crate/metrics/reading.hpp>
+#include <crate/metrics/reading_v1.hpp>
 #include <crate/networking/message_server.hpp>
 #include <crate/networking/message_receiver_if.hpp>
 

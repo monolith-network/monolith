@@ -1,7 +1,7 @@
 #include "app.hpp"
 
 #include <crate/externals/aixlog/logger.hpp>
-#include <crate/registrar/entry/node_v1.hpp>
+#include <crate/registrar/node_v1.hpp>
 #include <chrono>
 #include <sstream>
 

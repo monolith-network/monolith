@@ -6,7 +6,7 @@
 #include <thread>
 #include <mutex>
 #include <queue>
-#include <crate/metrics/reading.hpp>
+#include <crate/metrics/reading_v1.hpp>
 #include "interfaces/service_if.hpp"
 
 /*

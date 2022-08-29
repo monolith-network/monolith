@@ -1,6 +1,6 @@
 #include "metric_streamer.hpp"
 #include <crate/externals/aixlog/logger.hpp>
-#include <crate/metrics/streams/stream_data.hpp>
+#include <crate/metrics/streams/stream_data_v1.hpp>
 #include <crate/networking/message_writer.hpp>
 
 namespace monolith {

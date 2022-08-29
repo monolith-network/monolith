@@ -22,6 +22,13 @@ app_c::app_c(monolith::networking::ipv4_host_port_s host_port,
    _app_server = new httplib::Server();
 }
 
+app_c::~app_c() {
+   if (p_running.load()) {
+      stop();
+   }
+   delete _app_server;
+}
+
 bool app_c::start() {
 
    if (p_running.load()) {
@@ -43,7 +50,7 @@ bool app_c::start() {
    
    p_thread = std::thread(runner, _app_server, _address, _port);
 
-   std::this_thread::sleep_for(10ms);
+   std::this_thread::sleep_for(100ms);
 
    if (!_app_server->is_running()) {
       LOG(INFO) << TAG("app_c::start") << "Failed to start app webserver\n";
@@ -62,7 +69,13 @@ bool app_c::stop() {
    }
 
    _app_server->stop();
+
    p_running.store(false);
+
+   if (p_thread.joinable()) {
+      p_thread.join();
+   }
+
    return true;
 }
 

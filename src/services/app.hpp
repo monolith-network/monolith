@@ -29,6 +29,8 @@ public:
          monolith::services::metric_streamer_c* metric_streamer,
          monolith::services::data_submission_c* data_submission);
 
+   virtual ~app_c() override final;
+
    // From service_if
    virtual bool start() override final;
    virtual bool stop() override final;

@@ -214,6 +214,8 @@ void stop_services() {
                         << "Failed to stop service : " 
                         << service_name 
                         << "\n";
+         } else {
+            delete service;
          }
       }
    }

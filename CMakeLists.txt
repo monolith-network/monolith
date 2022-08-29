@@ -111,8 +111,7 @@ target_link_libraries(monolith
         Threads::Threads
         rocksdb
         dl
-        rt
-        )
+        rt)
 
 #
 #  Copy configs

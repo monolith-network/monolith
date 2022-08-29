@@ -275,7 +275,7 @@ void app_c::registrar_node_add(const httplib::Request& req, httplib::Response& r
                << value 
                << "\n";
 
-   crate::registrar::node_v1 decoded_node;
+   crate::registrar::node_v1_c decoded_node;
    if (!decoded_node.decode_from(value)) {
       res.set_content(
          get_json_response(return_codes_e::BAD_REQUEST_400, 
@@ -342,7 +342,7 @@ void app_c::metric_submit(const httplib::Request& req, httplib::Response& res) {
    auto metric = std::string(req.matches[1]);
    LOG(TRACE) << TAG("app_c::metric_submit") << "Got metric: " << metric << "\n";
 
-   crate::metrics::sensor_reading_v1 decoded_metric;
+   crate::metrics::sensor_reading_v1_c decoded_metric;
    if (!decoded_metric.decode_from(metric)) {
       res.set_content(
          get_json_response(return_codes_e::BAD_REQUEST_400, 

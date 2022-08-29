@@ -44,7 +44,7 @@ void metric_db_c::close() {
    }
 }
 
-bool metric_db_c::store(crate::metrics::sensor_reading_v1 metrics_entry) {
+bool metric_db_c::store(crate::metrics::sensor_reading_v1_c metrics_entry) {
 
    /*
          TODO:  WE NEED TO WORK ON THIS. KILL FOR NOW

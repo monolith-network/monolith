@@ -34,7 +34,7 @@ public:
    //! \returns true iff the metric gets enqueues for send
    //! \note  This enqueues the metric to be streamed and may not come out immediatly,
    //!        but the metric will come out in the order they are put in
-   bool submit_metric(crate::metrics::sensor_reading_v1 metric);
+   bool submit_metric(crate::metrics::sensor_reading_v1_c metric);
    
    //! \brief Add a streaming destination
    //! \param address The destination address
@@ -101,7 +101,7 @@ private:
    // them all out. This will help us cut off the input while this happens
    //
    std::atomic<bool> _accepting_metrics {false};
-   std::queue<crate::metrics::sensor_reading_v1> _metric_queue; // Outbount queue
+   std::queue<crate::metrics::sensor_reading_v1_c> _metric_queue; // Outbount queue
    std::mutex _metric_queue_mutex;
    uint64_t _metric_sequence {0};   // Monotonically increasing sequence counter
 

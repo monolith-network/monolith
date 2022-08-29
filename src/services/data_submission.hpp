@@ -55,7 +55,7 @@ public:
    //! \param data The validated data to submit
    //! \note This is the same as if an endpoint submitted data via the 
    //!       crate::networking::message_receiver_if (TCP)
-   void submit_data(crate::metrics::sensor_reading_v1& data);
+   void submit_data(crate::metrics::sensor_reading_v1_c& data);
 
 private:
    static constexpr uint8_t MAX_METRICS_PER_BURST = 100;    // Maximum umber of metric per metric burst
@@ -63,14 +63,14 @@ private:
 
    struct db_entry_queue {
       size_t submission_attempts {0};
-      crate::metrics::sensor_reading_v1 metric;
+      crate::metrics::sensor_reading_v1_c metric;
    };
 
    monolith::networking::ipv4_host_port_s _host_port;
    monolith::services::metric_streamer_c* _stream_server {nullptr};
    monolith::db::metric_db_c* _database {nullptr};
 
-   crate::networking::message_server* _message_server {nullptr};
+   crate::networking::message_server_c* _message_server {nullptr};
    std::queue<db_entry_queue> _metric_queue;
    std::mutex _metric_queue_mutex;
 

@@ -27,7 +27,7 @@ bool data_submission_c::start() {
    }
 
    if (!_message_server) {
-      _message_server = new crate::networking::message_server(
+      _message_server = new crate::networking::message_server_c(
          _host_port.address, 
          _host_port.port, 
          this
@@ -102,7 +102,7 @@ void data_submission_c::run() {
    }
 }
 
-void data_submission_c::submit_data(crate::metrics::sensor_reading_v1& data) {
+void data_submission_c::submit_data(crate::metrics::sensor_reading_v1_c& data) {
    
    LOG(INFO) << TAG("data_submission_c::submit_data") << "Got metric data\n";
    
@@ -125,7 +125,7 @@ void data_submission_c::receive_message(std::string metric_data) {
    }
 
    // Validate the reading
-   crate::metrics::sensor_reading_v1 reading;
+   crate::metrics::sensor_reading_v1_c reading;
    if (!reading.decode_from(metric_data)) {
       LOG(WARNING) << TAG("data_submission_c::receive_message") << "Failed to decode data: " << metric_data << "\n";
       return;
@@ -201,7 +201,7 @@ void data_submission_c::submit_metrics() {
          continue; 
       }
 
-      crate::registrar::node_v1 raw_node;
+      crate::registrar::node_v1_c raw_node;
       if (!raw_node.decode_from(*node_info)) {
          LOG(WARNING) << TAG("data_submission_c::submit_metrics")
                         << "Failed to decode node : "

@@ -38,7 +38,7 @@ public:
    //! \brief Store a metrics entry
    //! \param metrics_entry The metric to store
    //! \returns true iff the database is open and the metric could be stored
-   bool store(crate::metrics::sensor_reading_v1 metrics_entry);
+   bool store(crate::metrics::sensor_reading_v1_c metrics_entry);
 
 private:
    sqlitelib::Sqlite* _db {nullptr};

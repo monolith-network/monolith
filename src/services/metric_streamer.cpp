@@ -55,7 +55,7 @@ void metric_streamer_c::del_destination(const std::string& address, uint32_t por
    });
 }
 
-bool metric_streamer_c::submit_metric(crate::metrics::sensor_reading_v1 metric)
+bool metric_streamer_c::submit_metric(crate::metrics::sensor_reading_v1_c metric)
 {
    if (!_accepting_metrics.load()) {
       LOG(INFO) << TAG("metric_streamer_c::submit_metric") << "Not accepting metrics at this time\n";
@@ -207,7 +207,7 @@ void metric_streamer_c::perform_metric_streaming() {
    }
 
    size_t number_completed {0};
-   crate::metrics::streams::stream_data_v1 stream_package(_metric_sequence++);
+   crate::metrics::streams::stream_data_v1_c stream_package(_metric_sequence++);
 
    // Retrieve either a subset or all of the metrics, up to 
    // BURST_STREAM_METRIC in an anonymous scope so we don't keep
@@ -251,7 +251,7 @@ void metric_streamer_c::perform_metric_streaming() {
       // Create a writer for the endpoint and try to send off the data
       //
       bool okay {false};
-      auto writer = crate::networking::message_writer(destination.address, destination.port);
+      auto writer = crate::networking::message_writer_c(destination.address, destination.port);
 
       writer.write(encoded_package, okay);
 

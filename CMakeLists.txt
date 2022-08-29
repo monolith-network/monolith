@@ -80,7 +80,6 @@ set(DB_SOURCES
 )
 
 set(SERVICES_SOURCES
-   ${CMAKE_SOURCE_DIR}/src/services/registrar.cpp
    ${CMAKE_SOURCE_DIR}/src/services/data_submission.cpp
    ${CMAKE_SOURCE_DIR}/src/services/metric_streamer.cpp
    ${CMAKE_SOURCE_DIR}/src/services/app.cpp

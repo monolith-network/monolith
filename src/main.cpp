@@ -152,15 +152,6 @@ void load_configs(std::string file) {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'metric_submission_port'\n";
       std::exit(1);
    } 
-
-   std::optional<uint32_t> registration_port = 
-      tbl["networking"]["registration_port"].value<uint32_t>();
-   if (registration_port.has_value()) {
-      network_config.registration_port = *registration_port;
-   } else {
-      LOG(ERROR) << TAG("load_config") << "Missing config for 'registration_port'\n";
-      std::exit(1);
-   } 
 }
 
 void start_services() {
@@ -168,18 +159,6 @@ void start_services() {
    LOG(INFO) << TAG("start_services") << "Starting services\n";
 
    registrar_database = new monolith::db::kv_c(monolith_config.registration_db_path);
-
-   auto registrar = new monolith::services::registrar_c(
-      network_config.ipv4_address,
-      network_config.registration_port,
-      registrar_database
-   );
-
-   if (!registrar->start()) {
-      LOG(ERROR) << TAG("start_services") 
-                  << "Failed to start registrar server\n";
-      std::exit(1);
-   }
 
    auto metric_streamer = new monolith::services::metric_streamer_c();
 
@@ -191,6 +170,7 @@ void start_services() {
    auto app_service = new monolith::services::app_c(
       network_config.ipv4_address,
       network_config.http_port,
+      registrar_database,
       metric_streamer
    );
 
@@ -216,7 +196,6 @@ void start_services() {
       std::exit(1);
    }
 
-   services["registrar"] = registrar;
    services["data_submission"] = data_submission;
    services["metric_stream"] = metric_streamer;
    services["application"] = app_service;

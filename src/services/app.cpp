@@ -9,9 +9,14 @@ using namespace std::chrono_literals;
 namespace monolith {
 namespace services {
 
-app_c::app_c(const std::string& address, uint32_t port, 
-         monolith::services::metric_streamer_c* metric_streamer)
-         : _address(address), _port(port), _metric_streamer(metric_streamer){
+app_c::app_c(const std::string& address, 
+               uint32_t port, 
+               monolith::db::kv_c* db,
+               monolith::services::metric_streamer_c* metric_streamer)
+         : _address(address), 
+            _port(port), 
+            _registration_db(db), 
+            _metric_streamer(metric_streamer){
    _app_server = new httplib::Server();
 }
 
@@ -68,6 +73,8 @@ void app_c::setup_endpoints() {
             std::placeholders::_1, 
             std::placeholders::_2));
 
+   // -------- [Stream Registration Endpoints] --------
+
    // Endpoint to add metric stream destination
    _app_server->Get(R"(/metric/stream/add/(.*?)/(\d+))", 
       std::bind(&app_c::add_metric_stream_endpoint, 
@@ -81,6 +88,36 @@ void app_c::setup_endpoints() {
             this, 
             std::placeholders::_1, 
             std::placeholders::_2));
+
+   // ---------- [Registration DB Endpoints] ----------
+
+   // Endpoint to probe for item in database
+   _app_server->Get(R"(/probe/(.*?))", 
+      std::bind(&app_c::db_probe, 
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+   
+   // Endpoint to submit item to database
+   _app_server->Get(R"(/submit/(.*?)/(.*?))", 
+      std::bind(&app_c::db_submit, 
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+
+   // Endpoint to fetch item from database
+   _app_server->Get(R"(/fetch/(.*?))", 
+      std::bind(&app_c::db_fetch, 
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+
+   // Endpoint to delete item from database
+   _app_server->Get(R"(/delete/(.*?))", 
+      std::bind(&app_c::db_remove, 
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
 }
 
 std::string app_c::get_json_response(const app_c::return_codes_e rc, 
@@ -178,6 +215,107 @@ void app_c::del_metric_stream_endpoint(const httplib::Request& req, httplib:: Re
          "success"),
        "application/json");
 }
+
+void app_c::db_probe(const httplib::Request& req, httplib::Response& res) {
+   if (!valid_http_req(req, res, 2)) { return; }
+   
+   auto endpoint = req.matches[0];
+   auto key = std::string(req.matches[1]);
+
+   LOG(DEBUG) << TAG("app_c::db_probe") << "Got key: " << key << "\n";
+
+   res.set_content(run_probe(key), "application/json");
+}
+
+void app_c::db_submit(const httplib::Request& req, httplib::Response& res) {
+   if (!valid_http_req(req, res, 3)) { return; }
+   
+   auto endpoint = req.matches[0];
+   auto key = std::string(req.matches[1]);
+   auto value = std::string(req.matches[2]);
+
+   LOG(DEBUG) << TAG("app_c::db_submit") << "Got key: " << key << "\n";
+   LOG(DEBUG) << TAG("app_c::db_submit") << "Got value: " << value << "\n";
+
+   res.set_content(run_submit(key, value), "application/json");
+}
+
+void app_c::db_fetch(const httplib::Request& req, httplib::Response& res) {
+   if (!valid_http_req(req, res, 2)) { return; }
+
+   auto endpoint = req.matches[0];
+   auto key = std::string(req.matches[1]);
+   LOG(DEBUG) << TAG("app_c::db_fetch") << "Got key: " << key << "\n";
+
+   auto [response, response_type] = run_fetch(key);
+
+   res.set_content(response, response_type);
+}
+
+void app_c::db_remove(const httplib::Request& req, httplib::Response& res) {
+   if (!valid_http_req(req, res, 2)) { return; }
+
+   auto endpoint = req.matches[0];
+   auto key = std::string(req.matches[1]);
+   LOG(DEBUG) << TAG("app_c::db_remove") << "Got key: " << key << "\n";
+
+   res.set_content(run_remove(key), "application/json");
+}
+
+std::string app_c::run_probe(const std::string& key) {
+
+   if (_registration_db->exists(key)) {
+      return get_json_response(return_codes_e::OKAY, "found");
+   }
+
+   return get_json_response(return_codes_e::OKAY, "not found");
+}
+
+std::string app_c::run_submit(const std::string& key, const std::string& value) {
+
+   if (_registration_db->store(key, value)) {
+      return get_json_response(return_codes_e::OKAY, "success");
+   }
+
+   return get_json_response(return_codes_e::INTERNAL_SERVER_500, "server error");
+}
+
+std::tuple<std::string,
+      std::string> app_c::run_fetch(const std::string& key) {
+
+   auto result = _registration_db->load(key);
+   
+   if (!result.has_value()) {
+      return {get_json_response(return_codes_e::OKAY, "not found"), "application/json"};
+   }
+
+   return {*result, "text/plain"};
+}
+
+std::string app_c::run_remove(const std::string& key){
+
+   if (_registration_db->remove(key)) {
+      return get_json_response(
+            return_codes_e::OKAY,
+            "success");
+   }
+
+   return get_json_response(return_codes_e::INTERNAL_SERVER_500, "server error");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 } // namespace services
 } // namespace monolith

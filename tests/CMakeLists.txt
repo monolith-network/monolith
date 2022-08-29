@@ -12,6 +12,7 @@ add_executable(monolith-tests
          ${DB_SOURCES}
          ${SERVICES_SOURCES}
          sensor_registrar_test.cpp
+         streaming_tests.cpp
          server_tests.cpp
          main.cpp)
 

@@ -21,7 +21,7 @@ namespace {
    static constexpr uint32_t DATA_PORT = 4096;
    static constexpr uint32_t RECEIVE_PORT = 5042;
    static constexpr char REGISTRAR_DB[] = "test_registrar.db";
-   static constexpr char LOGS[] = "test";
+   static constexpr char LOGS[] = "test_registrar";
    static constexpr size_t NUM_NODES = 100;
    static constexpr size_t NUM_SENSORS_PER_NODE = 4;
    static constexpr size_t NUM_NODES_DELETE = NUM_NODES / 4;

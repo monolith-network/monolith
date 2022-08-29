@@ -83,7 +83,7 @@ void app_c::setup_endpoints() {
             std::placeholders::_2));
             
    // Endpoint to add metric stream destination
-   _app_server->Get(R"(/metric/stream/del/(.*?)/(\d+))", 
+   _app_server->Get(R"(/metric/stream/delete/(.*?)/(\d+))", 
       std::bind(&app_c::del_metric_stream_endpoint, 
             this, 
             std::placeholders::_1, 

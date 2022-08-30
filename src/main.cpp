@@ -12,6 +12,7 @@
 #include "services/app.hpp"
 #include "services/data_submission.hpp"
 #include "services/metric_streamer.hpp"
+#include "heartbeats.hpp"
 
 using namespace std::chrono_literals;
 
@@ -37,6 +38,7 @@ namespace {
    std::atomic<bool> active {true};
    std::atomic<bool> handling_signal {false};
 
+   monolith::heartbeats_c heartbeat_manager;
    monolith::db::kv_c* registrar_database {nullptr};
    monolith::db::metric_db_c* metric_database {nullptr};
 

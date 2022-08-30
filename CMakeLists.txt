@@ -85,6 +85,10 @@ set(SERVICES_SOURCES
    ${CMAKE_SOURCE_DIR}/src/services/app.cpp
 )
 
+set(TLD_SOURCES
+   ${CMAKE_SOURCE_DIR}/src/heartbeats.cpp
+)
+
 #
 #  Test
 #
@@ -98,6 +102,8 @@ endif()
 add_executable(monolith
          ${DB_SOURCES}
          ${SERVICES_SOURCES}
+         ${SHARED_SOURCES}
+         ${TLD_SOURCES}
          src/main.cpp)
 
 #

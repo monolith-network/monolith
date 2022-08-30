@@ -107,8 +107,8 @@ void data_submission_c::run() {
 
 void data_submission_c::submit_data(crate::metrics::sensor_reading_v1_c& data) {
    
-   LOG(INFO) << TAG("data_submission_c::submit_data") << "Got metric data\n";
-   
+   LOG(TRACE) << TAG("data_submission_c::submit_data") << "Got metric data\n";
+
    // Put the reading in the queue
    {
       const std::lock_guard<std::mutex> lock(_metric_queue_mutex);

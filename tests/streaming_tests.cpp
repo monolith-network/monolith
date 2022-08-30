@@ -10,6 +10,7 @@
 #include "services/app.hpp"
 #include "services/metric_streamer.hpp"
 #include "services/data_submission.hpp"
+#include <crate/metrics/helper.hpp>
 #include "heartbeats.hpp"
 #include <filesystem>
 #include <queue>
@@ -112,103 +113,116 @@ TEST(stream_test, stream_test_full)
    CHECK_TRUE(data_submission->start());
    CHECK_TRUE(app->start());
 
-   // Create nodes/sensors/readings
+   struct test_params {
+      crate::metrics::helper_c::endpoint_type_e endpoint_type;
+      uint32_t metric_port {0};
+   };
+
+   std::vector<test_params> tests = {
+      {crate::metrics::helper_c::endpoint_type_e::TCP, DATA_PORT},
+      {crate::metrics::helper_c::endpoint_type_e::HTTP, HTTP_PORT}
+   };
+
+   // Test metric submission on TCP HTTP endpoints
    //
-   for (size_t i = 0; i < NUM_NODES; i++) {
-      
-      crate::registrar::node_v1_c node;
-      node.set_id(std::to_string(i));
-      
-      for (size_t j = 0; j < NUM_SENSORS_PER_NODE; j++) {
-         crate::registrar::node_v1_c::sensor sensor;
-         sensor.id = std::to_string(i) + ":" + std::to_string(j);
-         sensor.description = "[desc]";
-         sensor.type = "[type]";
+   for (auto& test : tests) {
 
-         node.add_sensor(sensor);
+      nodes.clear();
+      readings.clear();
+      received_readings.clear();
 
-         for (size_t k = 0; k < NUM_READINGS_PER_SENSOR; k++) {
+      // Create nodes/sensors/readings
+      //
+      for (size_t i = 0; i < NUM_NODES; i++) {
+         
+         crate::registrar::node_v1_c node;
+         node.set_id(std::to_string(i));
+         
+         for (size_t j = 0; j < NUM_SENSORS_PER_NODE; j++) {
+            crate::registrar::node_v1_c::sensor sensor;
+            sensor.id = std::to_string(i) + ":" + std::to_string(j);
+            sensor.description = "[desc]";
+            sensor.type = "[type]";
 
-            crate::metrics::sensor_reading_v1_c reading(0, std::to_string(i), sensor.id, static_cast<double>(k));
-            reading.stamp();
+            node.add_sensor(sensor);
 
-            readings.push_back(reading);
+            for (size_t k = 0; k < NUM_READINGS_PER_SENSOR; k++) {
+
+               crate::metrics::sensor_reading_v1_c reading(0, std::to_string(i), sensor.id, static_cast<double>(k));
+               reading.stamp();
+
+               readings.push_back(reading);
+            }
+         }
+         nodes.push_back(node);
+      }
+
+      // Submit nodes
+      //
+      crate::registrar::helper_c registrar_helper(ADDRESS, HTTP_PORT);
+      for (auto& node : nodes) {
+         if (registrar_helper.submit(node) != crate::registrar::helper_c::result::SUCCESS) {
+            FAIL("Failed to submit node to registrar");
          }
       }
-      nodes.push_back(node);
-   }
 
-   // Submit nodes
-   //
-   crate::registrar::helper_c registrar_helper(ADDRESS, HTTP_PORT);
-   for (auto& node : nodes) {
-      if (registrar_helper.submit(node) != crate::registrar::helper_c::result::SUCCESS) {
-         FAIL("Failed to submit node to registrar");
-      }
-   }
+      // Register metric receiver
+      //
+      crate::metrics::streams::helper_c helper(ADDRESS, HTTP_PORT);
+      auto result = helper.register_as_metric_stream_receiver(
+         ADDRESS ,
+         RECEIVE_PORT
+      );
 
-   // Register metric receiver
-   //
-   crate::metrics::streams::helper_c helper(ADDRESS, HTTP_PORT);
-   auto result = helper.register_as_metric_stream_receiver(
-      ADDRESS ,
-      RECEIVE_PORT
-   );
-
-   if (result != crate::metrics::streams::helper_c::result::SUCCESS) {
-      FAIL("Failed to register object as a metric stream receiver");
-   }
-
-   std::this_thread::sleep_for(4s);
-
-   auto writer = crate::networking::message_writer_c(
-      ADDRESS,
-      DATA_PORT
-   );
-
-   // Submit metrics
-   // 
-   for(auto& reading : readings) {
-      std::this_thread::sleep_for(100ms);
-
-      std::string encoded;
-      if (!reading.encode_to(encoded)) {
-         FAIL("Failed to encode reading to string");
+      if (result != crate::metrics::streams::helper_c::result::SUCCESS) {
+         FAIL("Failed to register object as a metric stream receiver");
       }
 
-      bool okay {false};
-      writer.write(encoded, okay);
-      if (!okay) {
-         FAIL("Writer experienced an error");
+      std::this_thread::sleep_for(4s);
+
+      auto metric_helper = crate::metrics::helper_c(
+         test.endpoint_type,
+         ADDRESS,
+         test.metric_port
+      );
+
+      // Submit metrics
+      // 
+      for(auto& reading : readings) {
+         std::this_thread::sleep_for(100ms);
+
+         if (metric_helper.submit(reading) != crate::metrics::helper_c::result::SUCCESS) {
+            FAIL("Failed to write reading");
+         }
       }
-   }
 
-   std::this_thread::sleep_for(4s);
+      std::this_thread::sleep_for(4s);
 
-   // Verify received data
-   //
-   CHECK_EQUAL_TEXT(readings.size(), received_readings.size(), "Did not recieve all metrics sent to the server");
+      // Verify received data
+      //
+      CHECK_EQUAL_TEXT(readings.size(), received_readings.size(), "Did not recieve all metrics sent to the server");
 
-   for(size_t i = 0; i < readings.size(); i++) {
+      for(size_t i = 0; i < readings.size(); i++) {
 
-      std::string sent;
-      readings[i].encode_to(sent);
+         std::string sent;
+         readings[i].encode_to(sent);
 
-      std::string received;
-      received_readings[i].encode_to(received);
+         std::string received;
+         received_readings[i].encode_to(received);
 
-      CHECK_EQUAL_TEXT(sent, received, "Reading sent does not match reading received");
-   }
+         CHECK_EQUAL_TEXT(sent, received, "Reading sent does not match reading received");
+      }
 
-   // Remove self as a metric receiver
-   //
-   result = helper.deregister_as_metric_stream_receiver(
-      ADDRESS ,
-      RECEIVE_PORT
-   );
+      // Remove self as a metric receiver
+      //
+      result = helper.deregister_as_metric_stream_receiver(
+         ADDRESS ,
+         RECEIVE_PORT
+      );
 
-   if (result != crate::metrics::streams::helper_c::result::SUCCESS) {
-      FAIL("Failed to deregister object as a metric stream receiver");
+      if (result != crate::metrics::streams::helper_c::result::SUCCESS) {
+         FAIL("Failed to deregister object as a metric stream receiver");
+      }
    }
 
    // ---------- Stop all the services ----------

@@ -10,6 +10,7 @@
 #include "services/app.hpp"
 #include "services/metric_streamer.hpp"
 #include "services/data_submission.hpp"
+#include "heartbeats.hpp"
 #include <filesystem>
 #include <queue>
 #include <vector>
@@ -36,6 +37,7 @@ namespace {
    monolith::services::data_submission_c* data_submission {nullptr};
    monolith::db::metric_db_c* metric_db {nullptr};
    monolith::services::app_c* app {nullptr};
+   monolith::heartbeats_c heartbeat_manager;
    crate::networking::message_server_c* metric_stream_server {nullptr};
    std::vector<crate::registrar::node_v1_c> nodes;
    std::vector<crate::metrics::sensor_reading_v1_c> readings;
@@ -72,7 +74,8 @@ TEST_GROUP(stream_test)
          },
          registrar_db,
          metric_streamer,
-         metric_db
+         metric_db,
+         &heartbeat_manager
       );
       app = new monolith::services::app_c(
          monolith::networking::ipv4_host_port_s{
@@ -80,7 +83,8 @@ TEST_GROUP(stream_test)
          },
          registrar_db,
          metric_streamer,
-         data_submission
+         data_submission,
+         &heartbeat_manager
       );
       metric_stream_server = new crate::networking::message_server_c(ADDRESS, RECEIVE_PORT, &metric_stream_receiver);
    }

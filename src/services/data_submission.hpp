@@ -9,6 +9,7 @@
 #include "services/metric_streamer.hpp"
 #include "db/metric_db.hpp"
 #include "db/kv.hpp"
+#include "heartbeats.hpp"
 
 #include <crate/metrics/reading_v1.hpp>
 #include <crate/networking/message_server.hpp>
@@ -40,11 +41,13 @@ public:
    //! \param registrar_db The registrar database 
    //! \param metric_streamer Metric streaming service
    //! \param metric_db Metrics database
+   //! \param heartbeat_manager Manager for recording heartbeats
    data_submission_c(
       const monolith::networking::ipv4_host_port_s& host_port,
       monolith::db::kv_c* registrar_db,
       monolith::services::metric_streamer_c* metric_streamer,
-      monolith::db::metric_db_c* metric_db
+      monolith::db::metric_db_c* metric_db,
+      monolith::heartbeats_c* heartbeat_manager
       );
 
    // From service_if
@@ -69,6 +72,7 @@ private:
    monolith::networking::ipv4_host_port_s _host_port;
    monolith::services::metric_streamer_c* _stream_server {nullptr};
    monolith::db::metric_db_c* _database {nullptr};
+   monolith::heartbeats_c* _heartbeat_manager {nullptr};
 
    crate::networking::message_server_c* _message_server {nullptr};
    std::queue<db_entry_queue> _metric_queue;

@@ -11,6 +11,7 @@ include_directories(
 add_executable(monolith-tests
          ${DB_SOURCES}
          ${SERVICES_SOURCES}
+         ${TLD_SOURCES}
          sensor_registrar_test.cpp
          streaming_tests.cpp
          server_tests.cpp

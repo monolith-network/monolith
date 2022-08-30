@@ -175,7 +175,8 @@ void start_services() {
       },
       registrar_database,
       metric_streamer,
-      metric_database
+      metric_database,
+      &heartbeat_manager
    );
 
    if (!data_submission->start()) {
@@ -191,7 +192,8 @@ void start_services() {
       },
       registrar_database,
       metric_streamer,
-      data_submission
+      data_submission,
+      &heartbeat_manager
    );
 
    if (!app_service->start()) {

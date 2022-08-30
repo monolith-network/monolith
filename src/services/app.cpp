@@ -3,6 +3,7 @@
 #include <crate/externals/aixlog/logger.hpp>
 #include <crate/registrar/node_v1.hpp>
 #include <crate/registrar/controller_v1.hpp>
+#include <crate/metrics/heartbeat_v1.hpp>
 #include <chrono>
 #include <sstream>
 
@@ -14,12 +15,14 @@ namespace services {
 app_c::app_c(monolith::networking::ipv4_host_port_s host_port,
                monolith::db::kv_c* registrar_db,
                monolith::services::metric_streamer_c* metric_streamer,
-               monolith::services::data_submission_c* data_submission)
+               monolith::services::data_submission_c* data_submission,
+               monolith::heartbeats_c* heartbeat_manager)
          : _address(host_port.address), 
             _port(host_port.port), 
             _registration_db(registrar_db), 
             _metric_streamer(metric_streamer),
-            _data_submission(data_submission){
+            _data_submission(data_submission),
+            _heartbeat_manager(heartbeat_manager){
    _app_server = new httplib::Server();
 }
 
@@ -135,9 +138,16 @@ void app_c::setup_endpoints() {
                   std::placeholders::_1, 
                   std::placeholders::_2));
 
-   // Endpoint to delete item from database
+   // Endpoint to submit item to database
    _app_server->Get(R"(/metric/submit/(.*?))",
       std::bind(&app_c::metric_submit,
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+
+   // Endpoint send in a heartbeat
+   _app_server->Get(R"(/metric/heartbeat/(.*?))",
+      std::bind(&app_c::metric_heartbeat,
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
@@ -156,10 +166,10 @@ bool app_c::valid_http_req(const httplib::Request& req,
                      httplib::Response& res, 
                      size_t expected_items) {
    if (req.matches.size() < expected_items) {
-      LOG(INFO) << TAG("app_c::valid_http_req") << "Expected " << expected_items << ", but got " << req.matches.size() << "\n";
+      LOG(TRACE) << TAG("app_c::valid_http_req") << "Expected " << expected_items << ", but got " << req.matches.size() << "\n";
 
       for(auto i = 0; i < req.matches.size(); i++) {
-         LOG(INFO) << TAG("<dump>") << req.matches[i] << "\n";
+         LOG(TRACE) << TAG("<dump>") << req.matches[i] << "\n";
       }
 
       res.set_content(
@@ -246,7 +256,7 @@ void app_c::registrar_probe(const httplib::Request& req, httplib::Response& res)
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
 
-   LOG(DEBUG) << TAG("app_c::registrar_probe") << "Got key: " << key << "\n";
+   LOG(TRACE) << TAG("app_c::registrar_probe") << "Got key: " << key << "\n";
 
    if (_registration_db->exists(key)) {
       res.set_content(
@@ -269,7 +279,7 @@ void app_c::registrar_add(const httplib::Request& req, httplib::Response& res) {
    auto key = std::string(req.matches[1]);
    auto value = std::string(req.matches[2]);
 
-   LOG(DEBUG) << TAG("app_c::registrar_add") 
+   LOG(TRACE) << TAG("app_c::registrar_add") 
                << "k:" 
                << key 
                << "|v:" 
@@ -307,7 +317,7 @@ void app_c::registrar_fetch(const httplib::Request& req, httplib::Response& res)
 
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
-   LOG(DEBUG) << TAG("app_c::registrar_fetch") << "Got key: " << key << "\n";
+   LOG(TRACE) << TAG("app_c::registrar_fetch") << "Got key: " << key << "\n";
 
    auto result = _registration_db->load(key);
    
@@ -328,7 +338,7 @@ void app_c::registrar_delete(const httplib::Request& req, httplib::Response& res
 
    auto endpoint = req.matches[0];
    auto key = std::string(req.matches[1]);
-   LOG(DEBUG) << TAG("app_c::registrar_delete") << "Got key: " << key << "\n";
+   LOG(TRACE) << TAG("app_c::registrar_delete") << "Got key: " << key << "\n";
 
    if (_registration_db->remove(key)) {
       res.set_content(
@@ -364,6 +374,32 @@ void app_c::metric_submit(const httplib::Request& req, httplib::Response& res) {
       "application/json");
 }
 
+void app_c::metric_heartbeat(const httplib::Request& req, httplib:: Response& res) {
+   if (!valid_http_req(req, res, 2)) { return; }
+
+   auto endpoint = req.matches[0];
+   auto suspected_heartbeat = std::string(req.matches[1]);
+
+   crate::metrics::heartbeat_v1_c decoded_heartbeat;
+   if (!decoded_heartbeat.decode_from(suspected_heartbeat)) {
+      res.set_content(
+         get_json_response(return_codes_e::BAD_REQUEST_400, 
+         "malformed heartbeat"), 
+         "application/json");
+      return;
+   }
+
+   LOG(TRACE) << TAG("app_c::metric_heartbeat") 
+               << "Got heartbeat: " 
+               << decoded_heartbeat.getData() 
+               << "\n";
+
+   _heartbeat_manager->submit(decoded_heartbeat.getData());
+
+   res.set_content(
+      get_json_response(return_codes_e::OKAY, "success"), 
+      "application/json");
+}
 
 
 

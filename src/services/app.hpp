@@ -9,6 +9,7 @@
 #include "interfaces/service_if.hpp"
 #include "services/metric_streamer.hpp"
 #include "services/data_submission.hpp"
+#include "heartbeats.hpp"
 #include "networking/types.hpp"
 
 namespace monolith {
@@ -27,7 +28,8 @@ public:
    app_c(monolith::networking::ipv4_host_port_s host_port,
          monolith::db::kv_c* registrar_db,
          monolith::services::metric_streamer_c* metric_streamer,
-         monolith::services::data_submission_c* data_submission);
+         monolith::services::data_submission_c* data_submission,
+         monolith::heartbeats_c* heartbeat_manager);
 
    virtual ~app_c() override final;
 
@@ -49,6 +51,7 @@ private:
    monolith::db::kv_c* _registration_db {nullptr};
    monolith::services::metric_streamer_c* _metric_streamer {nullptr};
    monolith::services::data_submission_c* _data_submission {nullptr};
+   monolith::heartbeats_c* _heartbeat_manager {nullptr};
    httplib::Server* _app_server {nullptr};
 
    void setup_endpoints();
@@ -63,6 +66,7 @@ private:
    //
    void metric_stream_add(const httplib::Request& req, httplib:: Response& res);
    void metric_stream_delete(const httplib::Request& req, httplib:: Response& res);
+   void metric_heartbeat(const httplib::Request& req, httplib:: Response& res);
 
    // Registrar endpoints
    //

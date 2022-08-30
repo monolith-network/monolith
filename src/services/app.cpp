@@ -16,13 +16,15 @@ app_c::app_c(monolith::networking::ipv4_host_port_s host_port,
                monolith::db::kv_c* registrar_db,
                monolith::services::metric_streamer_c* metric_streamer,
                monolith::services::data_submission_c* data_submission,
-               monolith::heartbeats_c* heartbeat_manager)
+               monolith::heartbeats_c* heartbeat_manager,
+               monolith::portal::portal_c* portal)
          : _address(host_port.address), 
             _port(host_port.port), 
             _registration_db(registrar_db), 
             _metric_streamer(metric_streamer),
             _data_submission(data_submission),
-            _heartbeat_manager(heartbeat_manager){
+            _heartbeat_manager(heartbeat_manager),
+            _portal(portal){
    _app_server = new httplib::Server();
 }
 
@@ -42,7 +44,9 @@ bool app_c::start() {
 
    LOG(INFO) << TAG("app_c::start") << "Starting app web server [" << _address << ":" << _port << "]\n";
    
-   setup_endpoints();
+   if (!setup_endpoints()) {
+      return false;
+   }
    
    auto runner = [](httplib::Server* server, 
                      std::string address, 
@@ -83,9 +87,30 @@ bool app_c::stop() {
    return true;
 }
 
-void app_c::setup_endpoints() {
+void app_c::serve_static_resources(bool show) {
+   _serve_static_resources = show;
+}
 
-   // Endpoint to add metric stream destination
+bool app_c::setup_endpoints() {
+
+   if (_serve_static_resources) {
+      if (!_app_server->set_mount_point("/static", "./static")) {
+         LOG(FATAL) << "Failed to setup static directory\n";
+         return false;
+      }
+   }
+
+   // Portal might not be given in certain
+   // instances so we only do this if it has been given top us
+   if (_portal) {
+      // Setup the portal with our app_server - we don't need
+      // multiple http servers
+      if (!_portal->setup_portal(_app_server)) {
+         return false;
+      }
+   }
+
+   // Rppt
    _app_server->Get("/", 
       std::bind(&app_c::http_root, 
             this, 
@@ -101,7 +126,7 @@ void app_c::setup_endpoints() {
             std::placeholders::_1, 
             std::placeholders::_2));
             
-   // Endpoint to add metric stream destination
+   // Endpoint to delete metric stream destination
    _app_server->Get(R"(/metric/stream/delete/(.*?)/(\d+))", 
       std::bind(&app_c::metric_stream_delete, 
             this, 
@@ -151,6 +176,8 @@ void app_c::setup_endpoints() {
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
+
+   return true;
 }
 
 std::string app_c::get_json_response(const app_c::return_codes_e rc, 

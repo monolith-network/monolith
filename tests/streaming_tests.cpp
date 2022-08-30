@@ -85,7 +85,8 @@ TEST_GROUP(stream_test)
          registrar_db,
          metric_streamer,
          data_submission,
-         &heartbeat_manager
+         &heartbeat_manager,
+         nullptr // We don't need a portal for testing
       );
       metric_stream_server = new crate::networking::message_server_c(ADDRESS, RECEIVE_PORT, &metric_stream_receiver);
    }

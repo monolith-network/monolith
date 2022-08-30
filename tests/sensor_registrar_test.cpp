@@ -64,7 +64,8 @@ TEST_GROUP(sensor_registrar_test)
          registrar_db,
          metric_streamer,
          data_submission,
-         &heartbeat_manager
+         &heartbeat_manager,
+         nullptr // We don't need a portal for testing
       );
    }
 

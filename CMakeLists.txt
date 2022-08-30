@@ -85,6 +85,11 @@ set(SERVICES_SOURCES
    ${CMAKE_SOURCE_DIR}/src/services/app.cpp
 )
 
+set(PORTAL_SOURCES
+   ${CMAKE_SOURCE_DIR}/src/portal/portal.cpp
+)
+
+
 set(TLD_SOURCES
    ${CMAKE_SOURCE_DIR}/src/heartbeats.cpp
 )
@@ -103,6 +108,7 @@ add_executable(monolith
          ${DB_SOURCES}
          ${SERVICES_SOURCES}
          ${SHARED_SOURCES}
+         ${PORTAL_SOURCES}
          ${TLD_SOURCES}
          src/main.cpp)
 
@@ -123,4 +129,10 @@ target_link_libraries(monolith
 #  Copy configs
 #  
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/configs
+      DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+#
+#  Copy static files
+#
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/static
       DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

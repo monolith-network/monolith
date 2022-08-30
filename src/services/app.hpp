@@ -11,6 +11,7 @@
 #include "services/data_submission.hpp"
 #include "heartbeats.hpp"
 #include "networking/types.hpp"
+#include "portal/portal.hpp"
 
 namespace monolith {
 namespace services {
@@ -29,7 +30,12 @@ public:
          monolith::db::kv_c* registrar_db,
          monolith::services::metric_streamer_c* metric_streamer,
          monolith::services::data_submission_c* data_submission,
-         monolith::heartbeats_c* heartbeat_manager);
+         monolith::heartbeats_c* heartbeat_manager,
+         monolith::portal::portal_c* portal);
+
+   //! \brief Indicate that we want to serve static resources
+   //! \param show Value to set for showing static resources
+   void serve_static_resources(bool show);
 
    virtual ~app_c() override final;
 
@@ -52,9 +58,11 @@ private:
    monolith::services::metric_streamer_c* _metric_streamer {nullptr};
    monolith::services::data_submission_c* _data_submission {nullptr};
    monolith::heartbeats_c* _heartbeat_manager {nullptr};
+   monolith::portal::portal_c* _portal {nullptr};
    httplib::Server* _app_server {nullptr};
+   bool _serve_static_resources {false};
 
-   void setup_endpoints();
+   bool setup_endpoints();
    std::string get_json_response(const return_codes_e rc, 
                                     const std::string msg);               
    bool valid_http_req(const httplib::Request& req, 

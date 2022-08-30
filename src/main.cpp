@@ -7,11 +7,13 @@
 #include <toml++/toml.h>
 #include <crate/externals/aixlog/logger.hpp>
 #include <crate/common/common.hpp>
+#include <crate/metrics/streams/stream_receiver_if.hpp>
 
 #include "networking/types.hpp"
 #include "services/app.hpp"
 #include "services/data_submission.hpp"
 #include "services/metric_streamer.hpp"
+#include "portal/portal.hpp"
 #include "heartbeats.hpp"
 
 using namespace std::chrono_literals;
@@ -41,8 +43,11 @@ namespace {
    monolith::heartbeats_c heartbeat_manager;
    monolith::db::kv_c* registrar_database {nullptr};
    monolith::db::metric_db_c* metric_database {nullptr};
+   monolith::portal::portal_c* portal;
 
    std::unordered_map<std::string, monolith::service_if*> services;
+
+   std::vector<crate::metrics::streams::stream_receiver_if> internal_stream_receivers;
 }
 
 // Handle signals that will trigger us to shutdown
@@ -185,6 +190,11 @@ void start_services() {
       std::exit(1);
    }
 
+   portal = new monolith::portal::portal_c(
+      registrar_database,
+      metric_database
+   );
+
    auto app_service = new monolith::services::app_c(
       monolith::networking::ipv4_host_port_s{
          network_config.ipv4_address, 
@@ -193,8 +203,11 @@ void start_services() {
       registrar_database,
       metric_streamer,
       data_submission,
-      &heartbeat_manager
+      &heartbeat_manager,
+      portal
    );
+
+   app_service->serve_static_resources(true);
 
    if (!app_service->start()) {
       LOG(ERROR) << TAG("start_services") 

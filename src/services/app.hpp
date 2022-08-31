@@ -9,6 +9,7 @@
 #include "interfaces/service_if.hpp"
 #include "services/metric_streamer.hpp"
 #include "services/data_submission.hpp"
+#include "services/metric_db.hpp"
 #include "heartbeats.hpp"
 #include "networking/types.hpp"
 #include "portal/portal.hpp"
@@ -30,6 +31,7 @@ public:
          monolith::db::kv_c* registrar_db,
          monolith::services::metric_streamer_c* metric_streamer,
          monolith::services::data_submission_c* data_submission,
+         monolith::services::metric_db_c* database,
          monolith::heartbeats_c* heartbeat_manager,
          monolith::portal::portal_c* portal);
 
@@ -57,6 +59,7 @@ private:
    monolith::db::kv_c* _registration_db {nullptr};
    monolith::services::metric_streamer_c* _metric_streamer {nullptr};
    monolith::services::data_submission_c* _data_submission {nullptr};
+   monolith::services::metric_db_c* _metric_db {nullptr};
    monolith::heartbeats_c* _heartbeat_manager {nullptr};
    monolith::portal::portal_c* _portal {nullptr};
    httplib::Server* _app_server {nullptr};
@@ -86,6 +89,9 @@ private:
    // Metric endpoints
    //
    void metric_submit(const httplib::Request& req ,httplib:: Response &res);
+
+   
+   void test_db_fetch(const httplib::Request& req ,httplib:: Response &res);
 };
 
 } // namespace services

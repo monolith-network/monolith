@@ -5,7 +5,7 @@ namespace monolith {
 
 namespace {
    int64_t stamp() {
-      return std::chrono::duration_cast<std::chrono::milliseconds>(
+      return std::chrono::duration_cast<std::chrono::seconds>(
          std::chrono::system_clock::now().time_since_epoch()
       ).count();
    }
@@ -16,7 +16,7 @@ void heartbeats_c::submit(std::string id) {
    _heartbeats[id] = stamp();
 }
 
-std::optional<uint64_t> heartbeats_c::ms_since_contact(std::string id) {
+std::optional<uint64_t> heartbeats_c::sec_since_contact(std::string id) {
 
    auto now = stamp();
    int64_t value = 0;

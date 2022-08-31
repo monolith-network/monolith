@@ -16,12 +16,12 @@ public:
    //! \param id The id of the item that sent in a heartbeat
    void submit(std::string id);
 
-   //! \brief Retrieve the ms since last contact of a given id
+   //! \brief Retrieve the seconds since last contact of a given id
    //! \param id The id to check
    //! \returns optional number of ms since contact
    //!          if the id doesn't exist, or its data is otherwise,
    //!          invalid, nothing will be returned
-   std::optional<uint64_t> ms_since_contact(std::string id); 
+   std::optional<uint64_t> sec_since_contact(std::string id); 
 
 private:
    std::unordered_map<std::string, int64_t> _heartbeats;

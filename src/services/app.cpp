@@ -16,6 +16,7 @@ app_c::app_c(monolith::networking::ipv4_host_port_s host_port,
                monolith::db::kv_c* registrar_db,
                monolith::services::metric_streamer_c* metric_streamer,
                monolith::services::data_submission_c* data_submission,
+               monolith::services::metric_db_c* database,
                monolith::heartbeats_c* heartbeat_manager,
                monolith::portal::portal_c* portal)
          : _address(host_port.address), 
@@ -23,6 +24,7 @@ app_c::app_c(monolith::networking::ipv4_host_port_s host_port,
             _registration_db(registrar_db), 
             _metric_streamer(metric_streamer),
             _data_submission(data_submission),
+            _metric_db(database),
             _heartbeat_manager(heartbeat_manager),
             _portal(portal){
    _app_server = new httplib::Server();
@@ -177,6 +179,12 @@ bool app_c::setup_endpoints() {
                   std::placeholders::_1, 
                   std::placeholders::_2));
 
+   // Endpoint send in a heartbeat
+   _app_server->Get(R"(/test/fetch)",
+      std::bind(&app_c::test_db_fetch,
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
    return true;
 }
 
@@ -428,6 +436,55 @@ void app_c::metric_heartbeat(const httplib::Request& req, httplib:: Response& re
       "application/json");
 }
 
+
+void app_c::test_db_fetch(const httplib::Request& req, httplib:: Response& res) {
+   
+   LOG(DEBUG) << TAG("app_c::test_db_fetch") << "Got test fetch\n";
+
+
+   struct response_s {
+      std::string fetch_result;
+      bool complete {false};
+   };
+
+   response_s* response = new response_s({
+      .fetch_result = "none",
+      .complete = false
+   });
+
+   // TODO : Remove this from lambda and make it a file global static
+   //        so evey other callback can use this
+   //
+   auto cb = [] (void* data, std::string result)  {
+
+      auto res = static_cast<response_s*>(data);
+      res->fetch_result = result;
+      res->complete = true;
+   };
+
+   // Create the fetch
+   //
+   metric_db_c::fetch_s fetch {
+      .callback = cb,
+      .callback_data = static_cast<void*>(response),
+      .query = "SELECT * FROM metrics WHERE timestamp > 1661979031;"
+      //                                                1402507477
+   };
+   
+   if (!_metric_db || !_metric_db->fetch(fetch)) {
+      LOG(DEBUG) << TAG("app_c::test_db_fetch") << "Unable to submit fetch\n";
+   }
+
+   while (!response->complete) {
+      // Need a watchdog timeout for this loop too
+   }
+
+   res.set_content(
+      get_json_response(return_codes_e::OKAY, response->fetch_result), 
+      "application/json");
+
+   delete response;
+}
 
 
 

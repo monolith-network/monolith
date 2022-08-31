@@ -221,6 +221,7 @@ void start_services() {
       registrar_database,
       metric_streamer,
       data_submission,
+      metric_database,
       &heartbeat_manager,
       portal
    );

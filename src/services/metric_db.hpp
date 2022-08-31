@@ -52,6 +52,8 @@ public:
    //!       callback data
    bool fetch(fetch_s fetch);
 
+   //bool fetch_range(std::string sensor, int64_t start, int64_t end);
+
    // From service_if
    virtual bool  start() override final;
    virtual bool stop() override final;

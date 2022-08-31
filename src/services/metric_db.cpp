@@ -1,6 +1,8 @@
 #include "metric_db.hpp"
 #include <crate/externals/aixlog/logger.hpp>
 
+#include <algorithm>
+
 namespace monolith {
 namespace services {
    
@@ -31,10 +33,10 @@ bool metric_db_c::start() {
    _db->execute(R"(
    CREATE TABLE IF NOT EXISTS metrics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      timestamp TEXT,
+      timestamp BIGINT,
       node TEXT,
       sensor TEXT,
-      value TEXT
+      value DOUBLE
    )
    )");
 
@@ -121,16 +123,34 @@ void metric_db_c::store_metric(crate::metrics::sensor_reading_v1_c metrics_entry
    auto [ts, node_id, sensor_id, value] = metrics_entry.getData();
    auto stmt = _db->prepare("INSERT INTO metrics (timestamp, node, sensor, value) VALUES (?, ?, ?, ?)");
 
+   // TODO: <WARNING> !!! 
+   //       SQLite3 Can't use int64_t (or uint32_t??) .. so it has to be an int32_t which maxes out at 2147483647
+   //       which means it will only work until:
+   //       Mon Jan 18 2038 22:14:07 GMT-0500 (Eastern Standard Time)
    stmt.execute(
-      std::to_string(ts).c_str(), node_id.c_str(), sensor_id.c_str(), value
+         static_cast<int32_t>(ts), node_id.c_str(), sensor_id.c_str(), value
       );
 }
 
 void metric_db_c::fetch_metric(fetch_s fetch) {
 
 
+   struct response_s {
+      std::string fetch_result;
+      bool complete {false};
+   };
    // TODO : Finish this method
 
+   auto stmt = _db->prepare<int, int32_t, std::string, std::string, double>(fetch.query.c_str());
+
+   for (const auto& [id, ts, node, sensor, value] : stmt.execute_cursor()) {
+
+      LOG(DEBUG) << TAG("SQL") << id << ", " << ts << ", " << node << ", " << sensor << ", " << value << "\n";
+   }
+
+   auto res = static_cast<response_s*>(fetch.callback_data);
+   res->fetch_result = "done";
+   res->complete = true;
 
    LOG(WARNING) << TAG("metric_db_c::burst") << "FETCH has not yet been implemented\n";
 }

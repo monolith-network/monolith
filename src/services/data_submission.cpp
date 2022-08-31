@@ -13,7 +13,7 @@ namespace services {
 data_submission_c::data_submission_c(const monolith::networking::ipv4_host_port_s& host_port,
                                      monolith::db::kv_c* registrar,
                                      monolith::services::metric_streamer_c* metric_streamer,
-                                     monolith::db::metric_db_c* metric_db,
+                                     monolith::services::metric_db_c* metric_db,
                                      monolith::heartbeats_c* heartbeat_manager) 
                                           : _host_port(host_port),
                                             _registrar(registrar),

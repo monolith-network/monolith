@@ -264,7 +264,7 @@ void metric_streamer_c::perform_metric_streaming() {
                         << destination.address
                         << ":"
                         << destination.port
-                        << "\n";
+                        << "]\n";
       }
    }
 }

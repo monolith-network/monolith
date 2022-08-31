@@ -13,6 +13,7 @@
 #include "services/app.hpp"
 #include "services/data_submission.hpp"
 #include "services/metric_streamer.hpp"
+#include "services/metric_db.hpp"
 #include "portal/portal.hpp"
 #include "heartbeats.hpp"
 
@@ -24,6 +25,7 @@ namespace {
       std::string instance_name;
       std::string log_file_name;
       std::string registration_db_path;
+      std::string metric_db_path;
    };
    monolith_configuration_s monolith_config; 
 
@@ -42,7 +44,7 @@ namespace {
 
    monolith::heartbeats_c heartbeat_manager;
    monolith::db::kv_c* registrar_database {nullptr};
-   monolith::db::metric_db_c* metric_database {nullptr};
+   monolith::services::metric_db_c* metric_database {nullptr};
    monolith::portal::portal_c* portal;
 
    std::unordered_map<std::string, monolith::service_if*> services;
@@ -113,6 +115,15 @@ void load_configs(std::string file) {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'registration_db_path'\n";
       std::exit(1);
    } 
+
+   std::optional<std::string> metric_db_path = 
+      tbl["monolith"]["metric_db_path"].value<std::string>();
+   if (metric_db_path.has_value()) {
+      monolith_config.metric_db_path = *metric_db_path;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing config for 'metric_db_path'\n";
+      std::exit(1);
+   } 
    
    std::optional<bool> use_ipv6 = 
       tbl["networking"]["use_ipv6"].value<bool>();
@@ -171,6 +182,13 @@ void start_services() {
    if (!metric_streamer->start()) {
       LOG(ERROR) << TAG("start_services") << "Failed to start metric streamer\n";
       std::exit(1);
+   }
+
+   metric_database = new monolith::services::metric_db_c(monolith_config.metric_db_path);
+   if (!metric_database->start()) {
+      LOG(ERROR) << TAG("start_services") << "Failed to start metric database service\n";
+      delete metric_streamer;
+      std::exit(1); 
    }
 
    auto data_submission = new monolith::services::data_submission_c(

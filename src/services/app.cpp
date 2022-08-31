@@ -110,7 +110,7 @@ bool app_c::setup_endpoints() {
       }
    }
 
-   // Rppt
+   // Root
    _app_server->Get("/", 
       std::bind(&app_c::http_root, 
             this, 

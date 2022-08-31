@@ -7,7 +7,7 @@
 #include "networking/types.hpp"
 #include "interfaces/service_if.hpp"
 #include "services/metric_streamer.hpp"
-#include "db/metric_db.hpp"
+#include "services/metric_db.hpp"
 #include "db/kv.hpp"
 #include "heartbeats.hpp"
 
@@ -46,7 +46,7 @@ public:
       const monolith::networking::ipv4_host_port_s& host_port,
       monolith::db::kv_c* registrar_db,
       monolith::services::metric_streamer_c* metric_streamer,
-      monolith::db::metric_db_c* metric_db,
+      monolith::services::metric_db_c* metric_db,
       monolith::heartbeats_c* heartbeat_manager
       );
 
@@ -71,7 +71,7 @@ private:
 
    monolith::networking::ipv4_host_port_s _host_port;
    monolith::services::metric_streamer_c* _stream_server {nullptr};
-   monolith::db::metric_db_c* _database {nullptr};
+   monolith::services::metric_db_c* _database {nullptr};
    monolith::heartbeats_c* _heartbeat_manager {nullptr};
 
    crate::networking::message_server_c* _message_server {nullptr};

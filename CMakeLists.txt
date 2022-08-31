@@ -76,10 +76,10 @@ include_directories(
 #
 set(DB_SOURCES
    ${CMAKE_SOURCE_DIR}/src/db/kv.cpp
-   ${CMAKE_SOURCE_DIR}/src/db/metric_db.cpp
 )
 
 set(SERVICES_SOURCES
+   ${CMAKE_SOURCE_DIR}/src/services/metric_db.cpp
    ${CMAKE_SOURCE_DIR}/src/services/data_submission.cpp
    ${CMAKE_SOURCE_DIR}/src/services/metric_streamer.cpp
    ${CMAKE_SOURCE_DIR}/src/services/app.cpp

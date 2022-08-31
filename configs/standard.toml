@@ -2,6 +2,7 @@
 instance_name = "monoloth_standard"
 log_file_name = "monolith"
 registration_db_path = "/tmp/monolith_registration.db"
+metric_db_path = "/tmp/monolith_metrics.db"
 
 [networking]
 use_ipv6 = false

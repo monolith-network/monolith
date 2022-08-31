@@ -3,7 +3,7 @@
 
 #include <httplib.h>
 #include <crate/metrics/streams/stream_receiver_if.hpp>
-#include "db/metric_db.hpp"
+#include "services/metric_db.hpp"
 #include "db/kv.hpp"
 
 namespace monolith {
@@ -14,7 +14,7 @@ class portal_c : public crate::metrics::streams::stream_receiver_if {
 
 public:
    portal_c(monolith::db::kv_c* registrar_db,
-            monolith::db::metric_db_c* metric_db);
+            monolith::services::metric_db_c* metric_db);
 
    //! \brief Setup the portal and endpoints
    //! \param http_server The server item to use
@@ -28,7 +28,7 @@ public:
 private:
    httplib::Server* _http_server {nullptr};
    monolith::db::kv_c* _registrar_db {nullptr};
-   monolith::db::metric_db_c* _metric_db {nullptr};
+   monolith::services::metric_db_c* _metric_db {nullptr};
    
    void portal_root(const httplib::Request& req, httplib:: Response& res);
 

@@ -5,7 +5,7 @@ namespace monolith {
 namespace portal {
    
 portal_c::portal_c(monolith::db::kv_c* registrar_db,
-                   monolith::db::metric_db_c* metric_db)
+                   monolith::services::metric_db_c* metric_db)
                    : _registrar_db(registrar_db),
                      _metric_db(metric_db) {
 

@@ -8,7 +8,7 @@
 #include <functional>
 #include <queue>
 #include <mutex>
-
+#include <atomic>
 /*
    ABOUT:
       Long term storage for submitted metrics
@@ -23,13 +23,22 @@ namespace services {
 //! \brief Metric database
 class metric_db_c : public service_if {
 public:
-   using fetch_callback_f = std::function<void(void*, std::string data)>;
+   static constexpr double DEFAULT_QUERY_TIMEOUT_SEC = 30;
+
+   //! \brief A structure representing the response to a fetch
+   struct fetch_response_s {
+      std::string fetch_result;           //! The data returned from the fetch
+      std::atomic<bool> complete {false}; //! Will become true when the fetch response is complete
+      std::atomic<bool> timeout {false};  //! Flag to indicate if request timed out
+   };
+
+   //! \brief A callback function for submitted queries
+   using fetch_callback_f = std::function<void(fetch_response_s*, std::string)>;
 
    //! \brief A structure representing a fetch
    struct fetch_s {
       fetch_callback_f callback; //! Callback function to execute post fetch
-      void* callback_data;       //! Data objec to hand back post fetch
-      std::string query;         //! Query string to execute
+      fetch_response_s* callback_data;       //! Data objec to hand back post fetch
    };
 
    //! \brief Create the database
@@ -44,15 +53,13 @@ public:
    //! \returns true iff the database is open and the metric could be queued
    bool store(crate::metrics::sensor_reading_v1_c metrics_entry);
 
-   //! \brief Submit a fetch request
-   //! \param fetch The fetch to submit
-   //! \returns true iff the database is open and the fetch could be queued
-   //! \post The fetch will be enqueued and upon completion
-   //!       the given callback will be called with the given
-   //!       callback data
-   bool fetch(fetch_s fetch);
 
-   //bool fetch_range(std::string sensor, int64_t start, int64_t end);
+   bool check_db();
+   bool fetch_nodes(fetch_s fetch);
+   bool fetch_sensors(fetch_s fetch, std::string node_id);
+   bool fetch_range(fetch_s fetch, std::string node_id, int64_t start, int64_t end);
+   bool fetch_after(fetch_s fetch);
+   bool fetch_before(fetch_s fetch);
 
    // From service_if
    virtual bool  start() override final;
@@ -63,7 +70,11 @@ private:
 
    enum class request_type {
       SUBMIT,
-      FETCH
+      FETCH_NODES,
+      FETCH_SENSORS,
+      FETCH_RANGE,
+      FETCH_AFTER,
+      FETCH_BEFORE
    };
 
    class request_if {
@@ -82,11 +93,35 @@ private:
       crate::metrics::sensor_reading_v1_c entry;
    };
 
-   class fetch_c : public request_if {
+   class fetch_nodes_c : public request_if {
    public:
-      fetch_c() = delete;
-      fetch_c(fetch_s metrics_fetch) 
-         : request_if(request_type::FETCH), fetch(metrics_fetch) {}
+      fetch_nodes_c() = delete;
+      fetch_nodes_c(fetch_s metrics_fetch) 
+         : request_if(request_type::FETCH_NODES), fetch(metrics_fetch) {}
+      fetch_s fetch;
+   };
+
+   class fetch_sensors_c : public request_if {
+   public:
+      fetch_sensors_c() = delete;
+      fetch_sensors_c(fetch_s metrics_fetch, std::string node_id) 
+         : request_if(request_type::FETCH_SENSORS), node(node_id), fetch(metrics_fetch) {}
+      std::string node;
+      fetch_s fetch;
+   };
+
+   class fetch_range_c : public request_if {
+   public:
+      fetch_range_c() = delete;
+      fetch_range_c(fetch_s metrics_fetch, std::string node_id, int64_t start, int64_t end) 
+         : request_if(request_type::FETCH_RANGE), 
+            node(node_id),
+            start(start),
+            end(end),
+            fetch(metrics_fetch) {}
+      std::string node;
+      int64_t start;
+      int64_t end;
       fetch_s fetch;
    };
 
@@ -97,7 +132,9 @@ private:
    void run();
    void burst();
    void store_metric(crate::metrics::sensor_reading_v1_c metrics_entry);
-   void fetch_metric(fetch_s fetch);
+   void fetch_metric(fetch_nodes_c* fetch);
+   void fetch_metric(fetch_sensors_c* fetch);
+   void fetch_metric(fetch_range_c* fetch);
 };
 
 } // namespace services

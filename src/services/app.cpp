@@ -12,6 +12,39 @@ using namespace std::chrono_literals;
 namespace monolith {
 namespace services {
 
+namespace {
+   void db_cb(metric_db_c::fetch_response_s* response, std::string query_response) {
+
+      // Check to ensure we aren't executing on something dead or complete
+      if (response->timeout.load() || response->complete.load()) {
+         return;
+      }
+      response->fetch_result = query_response;
+      response->complete.store(true);
+   }
+
+   void db_wait(const double timeout, metric_db_c::fetch_response_s* fr) {
+      auto start = std::chrono::high_resolution_clock::now();
+
+      while (!fr->complete.load()) {
+
+         std::chrono::duration<double> wait_delta = 
+            std::chrono::high_resolution_clock::now() - start;
+
+         if (wait_delta.count() >= timeout) {
+            fr->timeout.store(true);
+            return;
+         }
+      }
+   }
+
+   int64_t get_now() {
+      return std::chrono::duration_cast<std::chrono::seconds>(
+         std::chrono::system_clock::now().time_since_epoch()
+      ).count();
+   }
+}
+
 app_c::app_c(monolith::networking::ipv4_host_port_s host_port,
                monolith::db::kv_c* registrar_db,
                monolith::services::metric_streamer_c* metric_streamer,
@@ -179,9 +212,37 @@ bool app_c::setup_endpoints() {
                   std::placeholders::_1, 
                   std::placeholders::_2));
 
-   // Endpoint send in a heartbeat
-   _app_server->Get(R"(/test/fetch)",
-      std::bind(&app_c::test_db_fetch,
+   // Endpoint retrieve all nodes that have reported data
+   _app_server->Get(R"(/metric/fetch/nodes)",
+      std::bind(&app_c::metric_fetch_nodes,
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+
+   // Retrieve all reporting sensors for a node
+   _app_server->Get(R"(/metric/fetch/(.*?)/sensors)",
+      std::bind(&app_c::metric_fetch_sensors,
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+
+   // Endpoint sensor's values within a range
+   _app_server->Get(R"(/metric/fetch/(.*?)/range/(.*?)/(.*?))",
+      std::bind(&app_c::metric_fetch_range,
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+
+   // Endpoint sensor's values after a timestamp
+   _app_server->Get(R"(/metric/fetch/(.*?)/after/(.*?))",
+      std::bind(&app_c::metric_fetch_after,
+                  this, 
+                  std::placeholders::_1, 
+                  std::placeholders::_2));
+
+   // Endpoint sensor's values before a timestamp
+   _app_server->Get(R"(/metric/fetch/(.*?)/before/(.*?))",
+      std::bind(&app_c::metric_fetch_before,
                   this, 
                   std::placeholders::_1, 
                   std::placeholders::_2));
@@ -195,6 +256,15 @@ std::string app_c::get_json_response(const app_c::return_codes_e rc,
    ",\"data\":\"" +
       msg + 
       "\"}";
+}
+
+std::string app_c::get_raw_json_response(const app_c::return_codes_e rc, 
+                                 const std::string json) {
+   return "{\"status\":" + 
+   std::to_string(static_cast<uint32_t>(rc)) +
+   ",\"data\":" +
+      json + 
+      "}";
 }
 
 bool app_c::valid_http_req(const httplib::Request& req, 
@@ -436,62 +506,136 @@ void app_c::metric_heartbeat(const httplib::Request& req, httplib:: Response& re
       "application/json");
 }
 
+void app_c::handle_fetch(httplib:: Response& res, const double timeout, metric_db_c::fetch_response_s* db_res) {
 
-void app_c::test_db_fetch(const httplib::Request& req, httplib:: Response& res) {
-   
-   LOG(DEBUG) << TAG("app_c::test_db_fetch") << "Got test fetch\n";
+   db_wait(timeout, db_res);
 
-
-   struct response_s {
-      std::string fetch_result;
-      bool complete {false};
-   };
-
-   response_s* response = new response_s({
-      .fetch_result = "none",
-      .complete = false
-   });
-
-   // TODO : Remove this from lambda and make it a file global static
-   //        so evey other callback can use this
-   //
-   auto cb = [] (void* data, std::string result)  {
-
-      auto res = static_cast<response_s*>(data);
-      res->fetch_result = result;
-      res->complete = true;
-   };
-
-   // Create the fetch
-   //
-   metric_db_c::fetch_s fetch {
-      .callback = cb,
-      .callback_data = static_cast<void*>(response),
-      .query = "SELECT * FROM metrics WHERE timestamp > 1661979031;"
-      //                                                1402507477
-   };
-   
-   if (!_metric_db || !_metric_db->fetch(fetch)) {
-      LOG(DEBUG) << TAG("app_c::test_db_fetch") << "Unable to submit fetch\n";
+   // Check if we've timed out
+   if (db_res->timeout.load()) {
+      res.set_content(
+         get_json_response(return_codes_e::GATEWAY_TIMEOUT_504, "timeout"), 
+         "application/json");
+      return;
    }
 
-   while (!response->complete) {
-      // Need a watchdog timeout for this loop too
+   // Ensure we've completed
+   if (!db_res->complete.load()) {
+      res.set_content(
+         get_json_response(return_codes_e::INTERNAL_SERVER_500, "No fetch completion flag set"), 
+         "application/json");
+      return;
    }
 
+   // Response from database will be json so we encode  a `raw` json response
    res.set_content(
-      get_json_response(return_codes_e::OKAY, response->fetch_result), 
+      get_raw_json_response(return_codes_e::OKAY, db_res->fetch_result), 
       "application/json");
+}
 
+void app_c::metric_fetch_nodes(const httplib::Request& req, httplib:: Response& res) {
+
+   metric_db_c::fetch_response_s* response = new metric_db_c::fetch_response_s();
+   metric_db_c::fetch_s fetch {
+      .callback = db_cb,
+      .callback_data = response
+   };
+   
+   // Submit the fetch
+   if (!_metric_db || !_metric_db->fetch_nodes(fetch)) {
+      LOG(WARNING) << TAG("app_c::metric_fetch_nodes") << "Unable to submit fetch\n";
+      res.set_content(
+         get_json_response(return_codes_e::INTERNAL_SERVER_500, "Failed to submit fetch"), 
+         "application/json");
+      return;
+   }
+
+   // Block this request thread until timeout hit or data retrieved
+   handle_fetch(res, metric_db_c::DEFAULT_QUERY_TIMEOUT_SEC, response);
    delete response;
 }
 
+void app_c::metric_fetch_sensors(const httplib::Request& req ,httplib:: Response &res) {
+   if (!valid_http_req(req, res, 2)) { return; }
 
+   auto node_id = req.matches[1];
 
+   LOG(DEBUG) << TAG("app_c::metric_fetch_sensors") << "For: " << node_id << "\n";
 
+   metric_db_c::fetch_response_s* response = new metric_db_c::fetch_response_s();
+   metric_db_c::fetch_s fetch {
+      .callback = db_cb,
+      .callback_data = response
+   };
 
+   // Submit the fetch
+   if (!_metric_db || !_metric_db->fetch_sensors(fetch, node_id)) {
+      LOG(WARNING) << TAG("app_c::metric_fetch_sensors") << "Unable to submit fetch\n";
+      res.set_content(
+         get_json_response(return_codes_e::INTERNAL_SERVER_500, "Failed to submit fetch"), 
+         "application/json");
+      return;
+   }
 
+   // Block this request thread until timeout hit or data retrieved
+   handle_fetch(res, metric_db_c::DEFAULT_QUERY_TIMEOUT_SEC, response);
+   delete response;
+}
 
+void app_c::metric_fetch_range(const httplib::Request& req ,httplib:: Response &res) {
+   if (!valid_http_req(req, res, 4)) { return; }
+   auto node_id = req.matches[1].str();
+
+   int64_t start {0};
+   {
+      std::stringstream ts_ss(req.matches[2].str());
+      ts_ss >> start;
+   }
+
+   int64_t end {0};
+   {
+      std::stringstream ts_ss(req.matches[3].str());
+      ts_ss >> end;
+   }
+
+   if (end <= start) {
+      LOG(WARNING) << TAG("app_c::metric_fetch_range") << "Bad time range\n";
+      res.set_content(
+         get_json_response(return_codes_e::BAD_REQUEST_400, "end time range must be > start time range"), 
+         "application/json");
+      return;
+   }
+
+   LOG(DEBUG) << TAG("app_c::metric_fetch_range") << node_id << ", start: " << start << ", end: " << end << "\n";
+   
+   metric_db_c::fetch_response_s* response = new metric_db_c::fetch_response_s();
+   metric_db_c::fetch_s fetch {
+      .callback = db_cb,
+      .callback_data = response
+   };
+
+   // Submit the fetch
+   if (!_metric_db || !_metric_db->fetch_range(fetch, node_id, start, end)) {
+      LOG(WARNING) << TAG("app_c::metric_fetch_range") << "Unable to submit fetch\n";
+      res.set_content(
+         get_json_response(return_codes_e::INTERNAL_SERVER_500, "Failed to submit fetch"), 
+         "application/json");
+      return;
+   }
+
+   // Block this request thread until timeout hit or data retrieved
+   handle_fetch(res, metric_db_c::DEFAULT_QUERY_TIMEOUT_SEC, response);
+   delete response;
+}
+
+void app_c::metric_fetch_after(const httplib::Request& req ,httplib:: Response &res) {
+
+   LOG(DEBUG) << TAG("app_c::metric_fetch_after") << "\n";
+}
+
+void app_c::metric_fetch_before(const httplib::Request& req ,httplib:: Response &res) {
+
+   LOG(DEBUG) << TAG("app_c::metric_fetch_before") << "\n";
+}
 
 
 

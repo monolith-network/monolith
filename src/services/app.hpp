@@ -67,9 +67,11 @@ private:
 
    bool setup_endpoints();
    std::string get_json_response(const return_codes_e rc, 
-                                    const std::string msg);               
-   bool valid_http_req(const httplib::Request& req, 
-                        httplib::Response& res, 
+                                    const std::string msg);
+   std::string get_raw_json_response(const app_c::return_codes_e rc, 
+                                       const std::string json);
+   bool valid_http_req(const httplib::Request& req,
+                        httplib::Response& res,
                         size_t expected_items);
    void http_root(const httplib::Request& req, httplib:: Response& res);
 
@@ -90,8 +92,16 @@ private:
    //
    void metric_submit(const httplib::Request& req ,httplib:: Response &res);
 
-   
-   void test_db_fetch(const httplib::Request& req ,httplib:: Response &res);
+   // Metric fetchs
+   //   
+   void handle_fetch(httplib:: Response& http_res, 
+                        const double timeout, 
+                        metric_db_c::fetch_response_s* res);
+   void metric_fetch_nodes(const httplib::Request& req ,httplib:: Response &res);
+   void metric_fetch_sensors(const httplib::Request& req ,httplib:: Response &res);
+   void metric_fetch_range(const httplib::Request& req ,httplib:: Response &res);
+   void metric_fetch_after(const httplib::Request& req ,httplib:: Response &res);
+   void metric_fetch_before(const httplib::Request& req ,httplib:: Response &res);
 };
 
 } // namespace services

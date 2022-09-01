@@ -152,8 +152,6 @@ void metric_db_c::fetch_metric(fetch_nodes_c* fetch) {
 
    std::string json_response = "[";
    for (const auto& node_name : stmt.execute_cursor()) {
-
-      LOG(DEBUG) << TAG("fetch_metric") << node_name << "\n";
       json_response += "\"" + node_name + "\",";
    }
 
@@ -176,8 +174,6 @@ void metric_db_c::fetch_metric(fetch_sensors_c* fetch) {
 
    std::string json_response = "[";
    for (const auto& sensor_name : stmt.execute_cursor()) {
-
-      LOG(DEBUG) << TAG("fetch_metric") << sensor_name << "\n";
       json_response += "\"" + sensor_name + "\",";
    }
 

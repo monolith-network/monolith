@@ -13,6 +13,12 @@ namespace monolith {
 namespace services {
 
 namespace {
+
+   /*
+      When the database is done processing the request it takes a callback to indicate that
+      the request is completed along with the results of that request. This is a standard
+      callback for all database access from the `app` webserver
+   */
    void db_cb(metric_db_c::fetch_response_s* response, std::string query_response) {
 
       // Check to ensure we aren't executing on something dead or complete
@@ -23,6 +29,12 @@ namespace {
       response->complete.store(true);
    }
 
+   /*
+      Because the database fetch/submit happens in a different thread and in the http 
+      handler each connection is its own thread that comes to completion we need to actively
+      wait for the database request to be completed. However, we may want to time out. 
+      This function handles that
+   */
    void db_wait(const double timeout, metric_db_c::fetch_response_s* fr) {
       auto start = std::chrono::high_resolution_clock::now();
 
@@ -38,6 +50,10 @@ namespace {
       }
    }
 
+   /*
+      Helper function to get the current time in seconds to compare against requests
+      from users who may be silly and try to request things from the future
+   */
    int64_t get_now() {
       return std::chrono::duration_cast<std::chrono::seconds>(
          std::chrono::system_clock::now().time_since_epoch()
@@ -559,8 +575,6 @@ void app_c::metric_fetch_sensors(const httplib::Request& req ,httplib:: Response
 
    auto node_id = req.matches[1];
 
-   LOG(DEBUG) << TAG("app_c::metric_fetch_sensors") << "For: " << node_id << "\n";
-
    metric_db_c::fetch_response_s* response = new metric_db_c::fetch_response_s();
    metric_db_c::fetch_s fetch {
       .callback = db_cb,
@@ -605,8 +619,6 @@ void app_c::metric_fetch_range(const httplib::Request& req ,httplib:: Response &
       return;
    }
 
-   LOG(DEBUG) << TAG("app_c::metric_fetch_range") << node_id << ", start: " << start << ", end: " << end << "\n";
-   
    metric_db_c::fetch_response_s* response = new metric_db_c::fetch_response_s();
    metric_db_c::fetch_s fetch {
       .callback = db_cb,
@@ -629,18 +641,85 @@ void app_c::metric_fetch_range(const httplib::Request& req ,httplib:: Response &
 
 void app_c::metric_fetch_after(const httplib::Request& req ,httplib:: Response &res) {
 
-   LOG(DEBUG) << TAG("app_c::metric_fetch_after") << "\n";
+   if (!valid_http_req(req, res, 3)) { return; }
+   auto node_id = req.matches[1].str();
+
+   int64_t time {0};
+   {
+      std::stringstream ts_ss(req.matches[2].str());
+      ts_ss >> time;
+   }
+
+   auto now = get_now();
+
+   if (time > now) {
+      LOG(WARNING) << TAG("app_c::metric_fetch_after") << "Time for `after` is in the future\n";
+      res.set_content(
+         get_json_response(return_codes_e::BAD_REQUEST_400, "time must be < now (not in the future)"), 
+         "application/json");
+      return;
+   }
+   
+   metric_db_c::fetch_response_s* response = new metric_db_c::fetch_response_s();
+   metric_db_c::fetch_s fetch {
+      .callback = db_cb,
+      .callback_data = response
+   };
+
+   // Submit the fetch
+   if (!_metric_db || !_metric_db->fetch_after(fetch, node_id, time)) {
+      LOG(WARNING) << TAG("app_c::metric_fetch_after") << "Unable to submit fetch\n";
+      res.set_content(
+         get_json_response(return_codes_e::INTERNAL_SERVER_500, "Failed to submit fetch"), 
+         "application/json");
+      return;
+   }
+
+   // Block this request thread until timeout hit or data retrieved
+   handle_fetch(res, metric_db_c::DEFAULT_QUERY_TIMEOUT_SEC, response);
+   delete response;
 }
 
 void app_c::metric_fetch_before(const httplib::Request& req ,httplib:: Response &res) {
 
-   LOG(DEBUG) << TAG("app_c::metric_fetch_before") << "\n";
+   if (!valid_http_req(req, res, 3)) { return; }
+   auto node_id = req.matches[1].str();
+
+   int64_t time {0};
+   {
+      std::stringstream ts_ss(req.matches[2].str());
+      ts_ss >> time;
+   }
+
+   auto now = get_now();
+
+   if (time > now) {
+      LOG(WARNING) << TAG("app_c::metric_fetch_before") << "Time for `after` is in the future\n";
+      res.set_content(
+         get_json_response(return_codes_e::BAD_REQUEST_400, "time must be < now (not in the future)"), 
+         "application/json");
+      return;
+   }
+   
+   metric_db_c::fetch_response_s* response = new metric_db_c::fetch_response_s();
+   metric_db_c::fetch_s fetch {
+      .callback = db_cb,
+      .callback_data = response
+   };
+
+   // Submit the fetch
+   if (!_metric_db || !_metric_db->fetch_before(fetch, node_id, time)) {
+      LOG(WARNING) << TAG("app_c::metric_fetch_before") << "Unable to submit fetch\n";
+      res.set_content(
+         get_json_response(return_codes_e::INTERNAL_SERVER_500, "Failed to submit fetch"), 
+         "application/json");
+      return;
+   }
+
+   // Block this request thread until timeout hit or data retrieved
+   handle_fetch(res, metric_db_c::DEFAULT_QUERY_TIMEOUT_SEC, response);
+   delete response;
 }
-
-
-
-
-
 
 } // namespace services
 } // namespace monolith

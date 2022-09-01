@@ -116,6 +116,12 @@ void metric_db_c::burst() {
          case request_type::FETCH_RANGE:
             fetch_metric(static_cast<fetch_range_c*>(req));
          break;
+         case request_type::FETCH_AFTER:
+            fetch_metric(static_cast<fetch_after_c*>(req));
+         break;
+         case request_type::FETCH_BEFORE:
+            fetch_metric(static_cast<fetch_before_c*>(req));
+         break;
       }
 
       // Clean up the request
@@ -160,28 +166,11 @@ void metric_db_c::fetch_metric(fetch_nodes_c* fetch) {
 
    fetch->fetch.callback_data->fetch_result = json_response;
    fetch->fetch.callback_data->complete.store(true);
-
-/*
-   auto stmt = _db->prepare<int, int32_t, std::string, std::string, double>(query.c_str());
-
-   for (const auto& [id, ts, node, sensor, value] : stmt.execute_cursor()) {
-
-      LOG(DEBUG) << TAG("SQL") << id << ", " << ts << ", " << node << ", " << sensor << ", " << value << "\n";
-   }
-
-   auto res = static_cast<response_s*>(fetch.callback_data);
-   res->fetch_result = "done";
-   res->complete = true;
-
-   LOG(WARNING) << TAG("metric_db_c::burst") << "FETCH has not yet been implemented\n";
-   */
 }
 
 void metric_db_c::fetch_metric(fetch_sensors_c* fetch) {
 
    std::string query = "select distinct sensor from metrics where node = \"" + fetch->node + "\";";
-
-      LOG(DEBUG) << TAG("fetch_metric") << "SENSORS : " << query << "\n";
 
    auto stmt = _db->prepare<std::string>(query.c_str());
 
@@ -213,14 +202,80 @@ void metric_db_c::fetch_metric(fetch_range_c* fetch) {
                          std::to_string(fetch->end) + 
                          ";";
 
-   LOG(DEBUG) << TAG("fetch_metric") << "RANGE QUERY : " << query << "\n";
-
    auto stmt = _db->prepare<int, int32_t, std::string, std::string, double>(query.c_str());
 
    std::string json_response = "[";
    for (const auto& [id, ts, node, sensor, value] : stmt.execute_cursor()) {
 
-      LOG(DEBUG) << TAG("SQL") << id << ", " << ts << ", " << node << ", " << sensor << ", " << value << "\n";
+      // Construct a reading for easy json
+      crate::metrics::sensor_reading_v1_c reading(ts, node, sensor, value);
+      std::string encoded;
+      if (!reading.encode_to(encoded)) {
+         json_response += "{\"error\":\"Failed to encode reading\"},";
+      } else {
+         json_response += encoded + ",";
+      }
+   }
+
+   // if we don't get anything back then we need to be empty,
+   // otherwise we have to pop off the comma
+   if (json_response != "[") {
+      json_response.pop_back();
+   }
+   json_response += "]";
+
+   fetch->fetch.callback_data->fetch_result = json_response;
+   fetch->fetch.callback_data->complete.store(true);
+}
+
+
+void metric_db_c::fetch_metric(fetch_after_c* fetch) {
+
+   std::string query = " select * from metrics where node = \"" + 
+                        fetch->node +
+                         "\" and timestamp > " + 
+                         std::to_string(fetch->time) +
+                         ";";
+   
+   auto stmt = _db->prepare<int, int32_t, std::string, std::string, double>(query.c_str());
+
+   std::string json_response = "[";
+   for (const auto& [id, ts, node, sensor, value] : stmt.execute_cursor()) {
+
+      // Construct a reading for easy json
+      crate::metrics::sensor_reading_v1_c reading(ts, node, sensor, value);
+      std::string encoded;
+      if (!reading.encode_to(encoded)) {
+         json_response += "{\"error\":\"Failed to encode reading\"},";
+      } else {
+         json_response += encoded + ",";
+      }
+   }
+
+
+   // if we don't get anything back then we need to be empty,
+   // otherwise we have to pop off the comma
+   if (json_response != "[") {
+      json_response.pop_back();
+   }
+   json_response += "]";
+
+   fetch->fetch.callback_data->fetch_result = json_response;
+   fetch->fetch.callback_data->complete.store(true);
+}
+
+void metric_db_c::fetch_metric(fetch_before_c* fetch) {
+
+   std::string query = " select * from metrics where node = \"" + 
+                        fetch->node +
+                         "\" and timestamp < " + 
+                         std::to_string(fetch->time) +
+                         ";";
+
+   auto stmt = _db->prepare<int, int32_t, std::string, std::string, double>(query.c_str());
+
+   std::string json_response = "[";
+   for (const auto& [id, ts, node, sensor, value] : stmt.execute_cursor()) {
 
       // Construct a reading for easy json
       crate::metrics::sensor_reading_v1_c reading(ts, node, sensor, value);
@@ -296,16 +351,25 @@ bool metric_db_c::fetch_range(fetch_s fetch, std::string node_id, int64_t start,
    return true;
 }
 
-bool metric_db_c::fetch_after(fetch_s fetch) {
+bool metric_db_c::fetch_after(fetch_s fetch, std::string node_id, int64_t time) {
 
-   return false;
+   if (!check_db()) { return false; }
+
+   // Enqueue the item to be put into the database
+   const std::lock_guard<std::mutex> lock(_request_queue_mutex);
+   _request_queue.push(new fetch_after_c(fetch, node_id, time));
+   return true;
 }
 
-bool metric_db_c::fetch_before(fetch_s fetch) {
+bool metric_db_c::fetch_before(fetch_s fetch, std::string node_id, int64_t time) {
 
-   return false;
+   if (!check_db()) { return false; }
+
+   // Enqueue the item to be put into the database
+   const std::lock_guard<std::mutex> lock(_request_queue_mutex);
+   _request_queue.push(new fetch_before_c(fetch, node_id, time));
+   return true;
 }
-
 
 } // namespace services
 } // namespace monolith

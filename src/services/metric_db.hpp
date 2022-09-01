@@ -58,8 +58,8 @@ public:
    bool fetch_nodes(fetch_s fetch);
    bool fetch_sensors(fetch_s fetch, std::string node_id);
    bool fetch_range(fetch_s fetch, std::string node_id, int64_t start, int64_t end);
-   bool fetch_after(fetch_s fetch);
-   bool fetch_before(fetch_s fetch);
+   bool fetch_after(fetch_s fetch, std::string node_id, int64_t time);
+   bool fetch_before(fetch_s fetch, std::string node_id, int64_t time);
 
    // From service_if
    virtual bool  start() override final;
@@ -125,16 +125,47 @@ private:
       fetch_s fetch;
    };
 
+   class fetch_after_c : public request_if {
+   public:
+      fetch_after_c() = delete;
+      fetch_after_c(fetch_s metrics_fetch, std::string node_id, int64_t time) 
+         : request_if(request_type::FETCH_AFTER), 
+            node(node_id),
+            time(time),
+            fetch(metrics_fetch) {}
+      std::string node;
+      int64_t time;
+      fetch_s fetch;
+   };
+
+   class fetch_before_c : public request_if {
+   public:
+      fetch_before_c() = delete;
+      fetch_before_c(fetch_s metrics_fetch, std::string node_id, int64_t time) 
+         : request_if(request_type::FETCH_BEFORE), 
+            node(node_id),
+            time(time),
+            fetch(metrics_fetch) {}
+      std::string node;
+      int64_t time;
+      fetch_s fetch;
+   };
+
    std::string _file;
    sqlitelib::Sqlite* _db {nullptr};
    std::mutex _request_queue_mutex;
    std::queue<request_if*> _request_queue;
+
    void run();
    void burst();
+
+   // Handle the individual types of access to the database
    void store_metric(crate::metrics::sensor_reading_v1_c metrics_entry);
    void fetch_metric(fetch_nodes_c* fetch);
    void fetch_metric(fetch_sensors_c* fetch);
    void fetch_metric(fetch_range_c* fetch);
+   void fetch_metric(fetch_after_c* fetch);
+   void fetch_metric(fetch_before_c* fetch);
 };
 
 } // namespace services

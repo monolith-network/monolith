@@ -28,6 +28,7 @@ namespace {
    static constexpr uint32_t DATA_PORT = 4096;
    static constexpr uint32_t RECEIVE_PORT = 5042;
    static constexpr char REGISTRAR_DB[] = "test_streaming_registrar.db";
+   static constexpr char METRIC_DB[] = "test_streaming_metric.db";
    static constexpr char LOGS[] = "test_streaming";
    static constexpr size_t NUM_NODES = 2;
    static constexpr size_t NUM_SENSORS_PER_NODE = 2;
@@ -36,7 +37,7 @@ namespace {
    monolith::db::kv_c* registrar_db {nullptr};
    monolith::services::metric_streamer_c* metric_streamer {nullptr};
    monolith::services::data_submission_c* data_submission {nullptr};
-   monolith::db::metric_db_c* metric_db {nullptr};
+   monolith::services::metric_db_c* metric_db {nullptr};
    monolith::services::app_c* app {nullptr};
    monolith::heartbeats_c heartbeat_manager;
    crate::networking::message_server_c* metric_stream_server {nullptr};
@@ -67,7 +68,7 @@ TEST_GROUP(stream_test)
    void setup() {
       crate::common::setup_logger(LOGS, AixLog::Severity::error);
       registrar_db = new monolith::db::kv_c(REGISTRAR_DB);
-      metric_db = new monolith::db::metric_db_c();
+      metric_db = new monolith::services::metric_db_c(METRIC_DB);
       metric_streamer = new monolith::services::metric_streamer_c();
       data_submission = new monolith::services::data_submission_c(
          monolith::networking::ipv4_host_port_s{
@@ -85,6 +86,7 @@ TEST_GROUP(stream_test)
          registrar_db,
          metric_streamer,
          data_submission,
+         metric_db,
          &heartbeat_manager,
          nullptr // We don't need a portal for testing
       );
@@ -101,6 +103,7 @@ TEST_GROUP(stream_test)
 
       std::filesystem::remove_all(std::string(LOGS) + std::string(".log"));
       std::filesystem::remove_all(REGISTRAR_DB);
+      std::filesystem::remove_all(METRIC_DB);
    }
 };
 

@@ -14,11 +14,13 @@ data_submission_c::data_submission_c(const monolith::networking::ipv4_host_port_
                                      monolith::db::kv_c* registrar,
                                      monolith::services::metric_streamer_c* metric_streamer,
                                      monolith::services::metric_db_c* metric_db,
+                                     monolith::services::rule_executor_c* rule_executor,
                                      monolith::heartbeats_c* heartbeat_manager) 
                                           : _host_port(host_port),
                                             _registrar(registrar),
                                             _stream_server(metric_streamer),
                                             _database(metric_db),
+                                            _rule_executor(rule_executor),
                                             _heartbeat_manager(heartbeat_manager) {}
 
 bool data_submission_c::start() {
@@ -246,12 +248,22 @@ void data_submission_c::submit_metrics() {
       
       // Store the metric in the local database  
       //
-      _database->store(entry.metric);
+      if (_database) {
+         _database->store(entry.metric);
+      }
+
+      // Submit the metric to the rule executor to analyze
+      //
+      if (_rule_executor) {
+         _rule_executor->submit_metric(entry.metric);
+      }
 
       // Fake a heartbeat as we know they're out there
       // somewhere in the ether gathering metrics
       //
-      _heartbeat_manager->submit(node_id);
+      if (_heartbeat_manager) {
+         _heartbeat_manager->submit(node_id);
+      }
 
       // Submit to stream server - it may be stopped or otherwise not accepting metrics
       // so we re enqueue it if thats the case

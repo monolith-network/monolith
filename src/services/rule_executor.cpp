@@ -1,4 +1,5 @@
 #include "rule_executor.hpp"
+#include "alert/alert.hpp"
 #include <crate/externals/aixlog/logger.hpp>
 #include <filesystem>
 
@@ -16,8 +17,9 @@ namespace {
    std::atomic<bool> file_open {false};
    std::atomic<uint64_t> instance_counter {0};
    lua_State *L {nullptr};
+   monolith::alert::alert_manager_c* alert_manager {nullptr};
 
-   constexpr char LUA_FUNC_ACCEPT_READING_V1[] = "accept_reading_v1";
+   constexpr char LUA_FUNC_ACCEPT_READING_V1[] = "accept_reading_v1_from_monolith";
 
     // Check return from LUA to ensure that it is LUA_OK
    bool check_lua(lua_State *L, int r)
@@ -29,7 +31,6 @@ namespace {
       }
       return true;
    }
-
 
    bool check_file_for_reading_v1(std::string file) {
 
@@ -56,7 +57,55 @@ namespace {
 
    // Send an alert to the alert system
    int lua_monolith_trigger_alert(lua_State* L) {
+
+      if(!lua_isnumber(L, 1)) {
+         LOG(ERROR) << TAG("lua_monolith_trigger_alert") << "Error: Expected first parameter to be a number \n";
+         return -1;  
+      }
+
+      if(!lua_isstring(L, 2)) {
+         LOG(ERROR) << TAG("lua_monolith_trigger_alert") << "Error: Expected firssecondt parameter to be a string \n";
+         return -2;  
+      }
+
+      int alert_id = lua_tonumber(L, 1);
+      std::string message = lua_tostring(L, 2);
+      alert_manager->trigger(alert_id, message);
       return 0;
+   }
+   
+   /*
+      Setup file statics
+   */
+   void setup_statics() {
+      // Check if Lua is setup
+      if (setup.load()) {
+         return;
+      }
+
+      L = luaL_newstate();
+      luaL_openlibs(L);
+      lua_register(L, "monolith_trigger_alert", lua_monolith_trigger_alert);
+
+      // TOOD:
+      // When we start piping confige to the manager do so via the rule_executor 
+      // call to this method
+      alert_manager = new monolith::alert::alert_manager_c();
+      setup.store(true);
+   }
+
+   /*
+      Cleanup file statics
+   */
+   void cleanup_statics() {
+      if (!setup.load()) {
+         return;
+      }
+
+      lua_close(L);
+      L = nullptr;
+      delete alert_manager;
+      alert_manager = nullptr;
    }
 }
 
@@ -67,27 +116,15 @@ rule_executor_c::rule_executor_c(const std::string& file)
    : _file(file) {
 
    instance_counter.fetch_add(1);
-
-   // Check if Lua is setup
-   if (setup.load()) {
-      return;
-   }
-
-   // Setup if not
-   L = luaL_newstate();
-   luaL_openlibs(L);
-   lua_register(L, "monolith_trigger_alert", lua_monolith_trigger_alert);
-
-   setup.store(true);
-
+   setup_statics();
 }
 
 rule_executor_c::~rule_executor_c() {
 
    // Check to see if we are last instance of rule_executor
+   // if we are, we need to clearn up on the way out
    if (instance_counter.load() == 0) {
-      lua_close(L);
-      L = nullptr;
+      cleanup_statics();
    } else {
       instance_counter.fetch_sub(1);
    }
@@ -126,9 +163,9 @@ bool rule_executor_c::open() {
    return true;
 }
 
-void rule_executor_c::submit_data(crate::metrics::sensor_reading_v1_c& data) {
+void rule_executor_c::submit_metric(crate::metrics::sensor_reading_v1_c& data) {
 
-   LOG(TRACE) << TAG("rule_executor_c::submit_data") << "Got metric data\n";
+   LOG(TRACE) << TAG("rule_executor_c::submit_metric") << "Got metric data\n";
    {
       const std::lock_guard<std::mutex> lock(_reading_queue_mutex);
       _reading_queue.push(data);

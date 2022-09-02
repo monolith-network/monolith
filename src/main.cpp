@@ -237,6 +237,7 @@ void start_services() {
       registrar_database,
       metric_streamer,
       metric_database,
+      rule_executor,
       &heartbeat_manager
    );
 

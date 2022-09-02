@@ -78,6 +78,10 @@ set(DB_SOURCES
    ${CMAKE_SOURCE_DIR}/src/db/kv.cpp
 )
 
+set(ALERT_SOURCES
+   ${CMAKE_SOURCE_DIR}/src/alert/alert.cpp
+)
+
 set(SERVICES_SOURCES
    ${CMAKE_SOURCE_DIR}/src/services/metric_db.cpp
    ${CMAKE_SOURCE_DIR}/src/services/data_submission.cpp
@@ -89,7 +93,6 @@ set(SERVICES_SOURCES
 set(PORTAL_SOURCES
    ${CMAKE_SOURCE_DIR}/src/portal/portal.cpp
 )
-
 
 set(TLD_SOURCES
    ${CMAKE_SOURCE_DIR}/src/heartbeats.cpp
@@ -107,6 +110,7 @@ endif()
 #
 add_executable(monolith
          ${DB_SOURCES}
+         ${ALERT_SOURCES}
          ${SERVICES_SOURCES}
          ${SHARED_SOURCES}
          ${PORTAL_SOURCES}

@@ -56,6 +56,7 @@ TEST_GROUP(sensor_registrar_test)
          registrar_db,
          metric_streamer,
          metric_db,
+         nullptr, // No rule executor
          &heartbeat_manager
       );
       app = new monolith::services::app_c(

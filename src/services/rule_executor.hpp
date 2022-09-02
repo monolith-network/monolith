@@ -17,7 +17,7 @@ public:
 
    bool open();
 
-   void submit_data(crate::metrics::sensor_reading_v1_c& data);
+   void submit_metric(crate::metrics::sensor_reading_v1_c& data);
 
    // From service_if
    virtual bool start() override final;

@@ -131,10 +131,10 @@ void data_submission_c::receive_message(std::string metric_data) {
    {
       crate::metrics::heartbeat_v1_c heartbeat;
       if (heartbeat.decode_from(metric_data)) {
-         _heartbeat_manager->submit(heartbeat.getData());
+         _heartbeat_manager->submit(heartbeat.get_data());
          LOG(TRACE) << TAG("data_submission_c::receive_message")
                      << "Received heartbeat from: "
-                     << heartbeat.getData()
+                     << heartbeat.get_data()
                      << "\n";
          return;
       }
@@ -197,7 +197,7 @@ void data_submission_c::submit_metrics() {
       entry.submission_attempts++;
 
       // Break apart the metric
-      auto [ts, node_id, sensor_id, value] = entry.metric.getData();
+      auto [ts, node_id, sensor_id, value] = entry.metric.get_data();
 
       // Retrieve the node 
 

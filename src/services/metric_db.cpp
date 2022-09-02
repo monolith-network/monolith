@@ -132,7 +132,7 @@ void metric_db_c::burst() {
 
 void metric_db_c::store_metric(crate::metrics::sensor_reading_v1_c metrics_entry) {
 
-   auto [ts, node_id, sensor_id, value] = metrics_entry.getData();
+   auto [ts, node_id, sensor_id, value] = metrics_entry.get_data();
    auto stmt = _db->prepare("INSERT INTO metrics (timestamp, node, sensor, value) VALUES (?, ?, ?, ?)");
 
    // TODO: <WARNING> !!! 

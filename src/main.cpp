@@ -3,6 +3,7 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <filesystem>
 
 #include <toml++/toml.h>
 #include <crate/externals/aixlog/logger.hpp>
@@ -14,6 +15,7 @@
 #include "services/data_submission.hpp"
 #include "services/metric_streamer.hpp"
 #include "services/metric_db.hpp"
+#include "services/rule_executor.hpp"
 #include "portal/portal.hpp"
 #include "heartbeats.hpp"
 
@@ -39,12 +41,18 @@ namespace {
    };
    networking_configuration_s network_config;
 
+   struct rules_configuration_s {
+      std::string rule_script;
+   };
+   rules_configuration_s rules_config;
+
    std::atomic<bool> active {true};
    std::atomic<bool> handling_signal {false};
 
    monolith::heartbeats_c heartbeat_manager;
    monolith::db::kv_c* registrar_database {nullptr};
    monolith::services::metric_db_c* metric_database {nullptr};
+   monolith::services::rule_executor_c* rule_executor {nullptr};
    monolith::portal::portal_c* portal;
 
    std::unordered_map<std::string, monolith::service_if*> services;
@@ -169,6 +177,20 @@ void load_configs(std::string file) {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'metric_submission_port'\n";
       std::exit(1);
    } 
+   
+   std::optional<std::string> rule_script = 
+      tbl["rules"]["rule_script"].value<std::string>();
+   if (rule_script.has_value()) {
+      rules_config.rule_script = *rule_script;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing config for 'rule_script'\n";
+      std::exit(1);
+   }
+
+   if (!std::filesystem::is_regular_file(rules_config.rule_script)) {
+      LOG(ERROR) << TAG("load_config") << "Given rule script: " << rules_config.rule_script << " does not exist\n";
+      std::exit(1);
+   }
 }
 
 void start_services() {
@@ -188,6 +210,22 @@ void start_services() {
    if (!metric_database->start()) {
       LOG(ERROR) << TAG("start_services") << "Failed to start metric database service\n";
       delete metric_streamer;
+      std::exit(1); 
+   }
+
+   rule_executor = new monolith::services::rule_executor_c(rules_config.rule_script);
+   if (!rule_executor->open()) {
+      LOG(ERROR) << TAG("start_services") << "Failed to open rule executor script\n";
+      metric_streamer->stop();
+      delete metric_streamer;
+      delete rule_executor;
+      std::exit(1); 
+   }
+
+   if (!rule_executor->start()) {
+      LOG(ERROR) << TAG("start_services") << "Failed to start rule executor\n";
+      delete metric_streamer;
+      delete rule_executor;
       std::exit(1); 
    }
 
@@ -234,6 +272,7 @@ void start_services() {
       std::exit(1);
    }
 
+   services["rule_executor"] = rule_executor;
    services["data_submission"] = data_submission;
    services["metric_stream"] = metric_streamer;
    services["application"] = app_service;

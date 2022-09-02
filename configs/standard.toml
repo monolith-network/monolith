@@ -11,3 +11,5 @@ ipv6_address = "::1"
 http_port = 8080
 metric_submission_port = 9000
 
+[rules]
+rule_script = "rules/default.lua"

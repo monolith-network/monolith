@@ -512,10 +512,10 @@ void app_c::metric_heartbeat(const httplib::Request& req, httplib:: Response& re
 
    LOG(TRACE) << TAG("app_c::metric_heartbeat") 
                << "Got heartbeat: " 
-               << decoded_heartbeat.getData() 
+               << decoded_heartbeat.get_data() 
                << "\n";
 
-   _heartbeat_manager->submit(decoded_heartbeat.getData());
+   _heartbeat_manager->submit(decoded_heartbeat.get_data());
 
    res.set_content(
       get_json_response(return_codes_e::OKAY, "success"), 

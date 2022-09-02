@@ -62,7 +62,7 @@ public:
    bool fetch_before(fetch_s fetch, std::string node_id, int64_t time);
 
    // From service_if
-   virtual bool  start() override final;
+   virtual bool start() override final;
    virtual bool stop() override final;
 
 private:

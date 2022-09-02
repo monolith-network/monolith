@@ -82,6 +82,7 @@ set(SERVICES_SOURCES
    ${CMAKE_SOURCE_DIR}/src/services/metric_db.cpp
    ${CMAKE_SOURCE_DIR}/src/services/data_submission.cpp
    ${CMAKE_SOURCE_DIR}/src/services/metric_streamer.cpp
+   ${CMAKE_SOURCE_DIR}/src/services/rule_executor.cpp
    ${CMAKE_SOURCE_DIR}/src/services/app.cpp
 )
 
@@ -121,6 +122,7 @@ target_link_libraries(monolith
         ${NETTLE_LIBRARIES}
         ${SQLite3_LIBRARIES}
         Threads::Threads
+        lua5.3
         rocksdb
         dl
         rt)
@@ -129,6 +131,12 @@ target_link_libraries(monolith
 #  Copy configs
 #  
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/configs
+      DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+#
+#  Copy rules
+#  
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/rules
       DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 #

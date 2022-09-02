@@ -19,6 +19,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release")
 endif()
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(libcurl REQUIRED IMPORTED_TARGET libcurl>=7.17.0)
+
 #
 #  Find SQLite3
 #
@@ -42,10 +45,6 @@ include_directories(${CRATE_INCLUDE_DIRS})
 #
 find_package (Threads REQUIRED)
 
-#
-# Find CURL
-#
-find_package(CURL REQUIRED) 
 
 #
 # Locate CPPUTest
@@ -74,7 +73,6 @@ endif()
 #  Ensure that tld includes available everywhere
 #
 include_directories(
-   ${CURL_INCLUDE_DIR}
    ${CMAKE_SOURCE_DIR}/src)
 
 #
@@ -86,6 +84,7 @@ set(DB_SOURCES
 
 set(ALERT_SOURCES
    ${CMAKE_SOURCE_DIR}/src/alert/alert.cpp
+   ${CMAKE_SOURCE_DIR}/src/alert/sms/twilio/twilio.cpp
 )
 
 set(SERVICES_SOURCES
@@ -135,6 +134,7 @@ target_link_libraries(monolith
         Threads::Threads
         lua5.3
         rocksdb
+        PkgConfig::libcurl
         dl
         rt)
 

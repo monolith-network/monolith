@@ -1,11 +1,14 @@
 #ifndef MONOLITH_SMS_TWILIO_HPP
 #define MONOLITH_SMS_TWILIO_HPP
 
+#include <atomic>
+#include <string>
 #include "interfaces/sms_backend_if.hpp"
 
 namespace monolith {
 namespace sms {
 
+//! \brief The twilio sms backend
 class twilio_c : public monolith::sms_backend_if {
 public:
    //! \brief Configuration for an sms alert provider
@@ -17,6 +20,9 @@ public:
    };
 
    twilio_c() = delete;
+
+   //! \brief Create the twilio backend with a given 
+   //!        configuration struct
    twilio_c(configuration_c config);
 
    // From sms_backend_if
@@ -25,6 +31,7 @@ public:
    virtual bool send_message(std::string message) override final;
 
 private:
+   std::atomic<bool> _is_setup {false};
    configuration_c _config;
    
    // --- From twilio example

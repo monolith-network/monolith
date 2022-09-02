@@ -49,7 +49,7 @@ public:
    void del_destination(const std::string& address, uint32_t port);
 
    // From service_if
-   virtual bool  start() override final;
+   virtual bool start() override final;
    virtual bool stop() override final;
 private:
    /*

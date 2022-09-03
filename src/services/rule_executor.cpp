@@ -90,10 +90,7 @@ namespace {
       // TOOD:
       // When we start piping confige to the manager do so via the rule_executor 
       // call to this method
-      alert_manager = new monolith::alert::alert_manager_c(
-         monolith::alert::alert_manager_c::configuration_c{
-         .sms_backend = alert_config.sms_backend
-      });
+      alert_manager = new monolith::alert::alert_manager_c(alert_config);
       setup.store(true);
    }
 

@@ -166,13 +166,13 @@ bool twilio_c::send_message(std::string message) {
 
    // Check for curl errors and Twilio failure status codes.
    if (res != CURLE_OK) {
-      LOG(ERROR) << TAG(" twilio_c::send_message") <<curl_easy_strerror(res) << "\n";
+      LOG(ERROR) << TAG("twilio_c::send_message") <<curl_easy_strerror(res) << "\n";
       return false;
    } else if (http_code != 200 && http_code != 201) {
-      LOG(ERROR) << TAG(" twilio_c::send_message") << response_stream.str() << "\n";
+      LOG(ERROR) << TAG("twilio_c::send_message") << response_stream.str() << "\n";
       return false;
    } else {
-      LOG(DEBUG) << TAG(" twilio_c::send_message") << "SENT\n";
+      LOG(DEBUG) << TAG("twilio_c::send_message") << "SENT\n";
       return true;
    }
 }

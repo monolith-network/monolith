@@ -21,12 +21,12 @@ void alert_manager_c::trigger(const int id, const std::string message) {
       if (it != _send_map.end()) {
          auto now = std::chrono::steady_clock::now();
          std::chrono::duration<double> diff = now - it->second.last_send;
-         if (diff.count() <= SPAM_LIMITER) {
+         if (diff.count() <= _config.alert_cooldown_seconds) {
             LOG(INFO) << TAG("alert_manager_c::trigger") 
                         << "Actively limiting alert for : " 
                         << id 
                         << ". Seconds left on limiter: " 
-                        << SPAM_LIMITER - diff.count() 
+                        << _config.alert_cooldown_seconds - diff.count() 
                         << "s \n";
             return;
          }
@@ -36,6 +36,15 @@ void alert_manager_c::trigger(const int id, const std::string message) {
       }
    }
 
+   if (_config.max_alert_sends != 0) {
+      if (_total_alerts_sent++ >= _config.max_alert_sends) {
+         LOG(INFO) << TAG("alert_manager_c::trigger") 
+                     << "Maximum number of alerts (" 
+                     << _config.max_alert_sends 
+                     << ") has been reached\n";
+         return;
+      }
+   }
 
    if (_config.sms_backend) {
       if (!_config.sms_backend->send_message(message)) {

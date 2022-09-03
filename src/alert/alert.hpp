@@ -16,6 +16,8 @@ class alert_manager_c {
 public:
    //! \brief Configuration
    struct configuration_c {
+      uint64_t max_alert_sends {0};
+      double alert_cooldown_seconds {30.0};
       monolith::sms_backend_if* sms_backend {nullptr};
    };
 
@@ -27,10 +29,6 @@ public:
    //! \param message The message to send
    void trigger(const int id, const std::string message);
 private:
-
-   static constexpr double SPAM_LIMITER = 30.0; //! Only allow one message per id every 30 seconds
-   static constexpr uint8_t MAX_SENDS = 10;     //! Limit number of sends during testing
-
    struct sent_s {
       std::chrono::time_point<std::chrono::steady_clock> last_send;
       uint64_t num_sends { 0};
@@ -40,6 +38,7 @@ private:
    std::mutex _send_map_mutex;
 
    configuration_c _config;
+   uint64_t _total_alerts_sent {0};
 };
 
 } // namespace alert

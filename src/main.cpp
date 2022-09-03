@@ -243,6 +243,29 @@ void load_configs(std::string file) {
 
    /*
    
+         Load alert configurations
+   
+   */
+   std::optional<uint64_t> max_alert_sends = 
+      tbl["alert"]["max_alert_sends"].value<uint64_t>();
+   if (max_alert_sends.has_value()) {
+      alert_config.max_alert_sends = *max_alert_sends;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing config for 'max_alert_sends'\n";
+      std::exit(1);
+   }
+
+   std::optional<double> alert_cooldown_seconds = 
+      tbl["alert"]["alert_cooldown_seconds"].value<double>();
+   if (alert_cooldown_seconds.has_value()) {
+      alert_config.alert_cooldown_seconds = *alert_cooldown_seconds;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing config for 'alert_cooldown_seconds'\n";
+      std::exit(1);
+   }
+
+   /*
+   
          Load optional twilio configurations
    
    */

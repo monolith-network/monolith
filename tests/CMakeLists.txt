@@ -10,6 +10,7 @@ include_directories(
 
 add_executable(monolith-tests
          ${DB_SOURCES}
+         ${ALERT_SOURCES}
          ${SERVICES_SOURCES}
          ${PORTAL_SOURCES}
          ${TLD_SOURCES}
@@ -26,7 +27,9 @@ target_link_libraries(monolith-tests
         ${SQLite3_LIBRARIES}
         libutil
         Threads::Threads
+        lua5.3
         rocksdb 
+        PkgConfig::libcurl
         dl
         rt)
 

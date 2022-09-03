@@ -43,6 +43,11 @@ include_directories(${CRATE_INCLUDE_DIRS})
 find_package (Threads REQUIRED)
 
 #
+# Find CURL
+#
+find_package(CURL REQUIRED) 
+
+#
 # Locate CPPUTest
 #
 if(DEFINED ENV{CPPUTEST_HOME})
@@ -69,6 +74,7 @@ endif()
 #  Ensure that tld includes available everywhere
 #
 include_directories(
+   ${CURL_INCLUDE_DIR}
    ${CMAKE_SOURCE_DIR}/src)
 
 #
@@ -125,6 +131,7 @@ target_link_libraries(monolith
         ${CRATE_LIBRARIES}
         ${NETTLE_LIBRARIES}
         ${SQLite3_LIBRARIES}
+        ${CURL_LIBRARIES}
         Threads::Threads
         lua5.3
         rocksdb

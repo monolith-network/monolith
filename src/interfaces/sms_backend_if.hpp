@@ -1,16 +1,13 @@
 #ifndef MONOLITH_INTERFACE_SMS_BACKEND_HPP
 #define MONOLITH_INTERFACE_SMS_BACKEND_HPP
 
-#include "alert/sms/sms_configuration.hpp"
+#include <string>
 
 namespace monolith {
 
 //! \brief An interface representing an sms backend
 class sms_backend_if {
 public:
-   constexpr sms_backend_if() = default;
-   virtual ~sms_backend_if {}
-
    //! \brief Setup the backend 
    //! \returns true iff the backend is setup and
    //!          ready to be used
@@ -25,7 +22,7 @@ public:
    //! \param message The message to send
    //! \returns true iff the backend has honestly attempted
    //!          to send the message
-   virtual bool send_message(std::string message);
+   virtual bool send_message(std::string message) = 0;
 };
 
 } // namespace monolith

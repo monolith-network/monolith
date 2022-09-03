@@ -1,5 +1,4 @@
 #include "rule_executor.hpp"
-#include "alert/alert.hpp"
 #include <crate/externals/aixlog/logger.hpp>
 #include <filesystem>
 
@@ -77,7 +76,7 @@ namespace {
    /*
       Setup file statics
    */
-   void setup_statics() {
+   void setup_statics(monolith::alert::alert_manager_c::configuration_c alert_config) {
       // Check if Lua is setup
       if (setup.load()) {
          return;
@@ -87,10 +86,14 @@ namespace {
       luaL_openlibs(L);
       lua_register(L, "monolith_trigger_alert", lua_monolith_trigger_alert);
 
+
       // TOOD:
       // When we start piping confige to the manager do so via the rule_executor 
       // call to this method
-      alert_manager = new monolith::alert::alert_manager_c();
+      alert_manager = new monolith::alert::alert_manager_c(
+         monolith::alert::alert_manager_c::configuration_c{
+         .sms_backend = alert_config.sms_backend
+      });
       setup.store(true);
    }
 
@@ -112,11 +115,11 @@ namespace {
 namespace monolith {
 namespace services {
 
-rule_executor_c::rule_executor_c(const std::string& file)
+rule_executor_c::rule_executor_c(const std::string& file, monolith::alert::alert_manager_c::configuration_c alert_config)
    : _file(file) {
 
    instance_counter.fetch_add(1);
-   setup_statics();
+   setup_statics(alert_config);
 }
 
 rule_executor_c::~rule_executor_c() {

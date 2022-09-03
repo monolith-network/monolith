@@ -13,3 +13,9 @@ metric_submission_port = 9000
 
 [rules]
 rule_script = "rules/default.lua"
+
+[twilio]
+account_sid = ""
+auth_token = ""
+from = ""
+to = ""

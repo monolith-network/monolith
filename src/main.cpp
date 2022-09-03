@@ -10,6 +10,8 @@
 #include <crate/common/common.hpp>
 #include <crate/metrics/streams/stream_receiver_if.hpp>
 
+#include "alert/sms/twilio/twilio.hpp"
+#include "alert/alert.hpp"
 #include "networking/types.hpp"
 #include "services/app.hpp"
 #include "services/data_submission.hpp"
@@ -23,6 +25,9 @@ using namespace std::chrono_literals;
 
 namespace {
 
+   /*
+         Monolith configuration
+   */
    struct monolith_configuration_s {
       std::string instance_name;
       std::string log_file_name;
@@ -31,6 +36,9 @@ namespace {
    };
    monolith_configuration_s monolith_config; 
 
+   /*
+         Networking configuration
+   */
    struct networking_configuration_s {
       bool use_ipv6 {false};
       std::string ipv4_address;
@@ -41,23 +49,47 @@ namespace {
    };
    networking_configuration_s network_config;
 
+   /*
+         Rules configuration
+   */
    struct rules_configuration_s {
       std::string rule_script;
    };
    rules_configuration_s rules_config;
 
+   /*
+         Alert configuration
+   */
+   monolith::alert::alert_manager_c::configuration_c alert_config;
+
+   /*
+         Main app control atomics
+   */
    std::atomic<bool> active {true};
    std::atomic<bool> handling_signal {false};
 
+   /*
+         Shared non-service objects
+   */
+   monolith::portal::portal_c* portal;
    monolith::heartbeats_c heartbeat_manager;
    monolith::db::kv_c* registrar_database {nullptr};
+   std::vector<crate::metrics::streams::stream_receiver_if> internal_stream_receivers;
+
+   /*
+         Services
+   */
+   monolith::services::data_submission_c* data_submission {nullptr};
    monolith::services::metric_db_c* metric_database {nullptr};
    monolith::services::rule_executor_c* rule_executor {nullptr};
-   monolith::portal::portal_c* portal;
-
+   monolith::services::app_c* app_service {nullptr};
    std::unordered_map<std::string, monolith::service_if*> services;
 
-   std::vector<crate::metrics::streams::stream_receiver_if> internal_stream_receivers;
+   /*
+         Alert backends
+   */
+   monolith::sms::twilio_c* twilio_backend {nullptr};
+   
 }
 
 // Handle signals that will trigger us to shutdown
@@ -82,6 +114,8 @@ void signal_ignore_handler(int signum) {
                << "\n";
 }
 
+// Load a configuration file
+//
 void load_configs(std::string file) {
    
    toml::table tbl;
@@ -97,6 +131,11 @@ void load_configs(std::string file) {
       std::exit(1);
    }
 
+   /*
+   
+         Load monolith configurations
+   
+   */
    std::optional<std::string> instance_name = 
       tbl["monolith"]["instance_name"].value<std::string>();
    if (instance_name.has_value()) {
@@ -133,6 +172,11 @@ void load_configs(std::string file) {
       std::exit(1);
    } 
    
+   /*
+   
+         Load networking configurations
+   
+   */
    std::optional<bool> use_ipv6 = 
       tbl["networking"]["use_ipv6"].value<bool>();
    if (use_ipv6.has_value()) {
@@ -177,7 +221,12 @@ void load_configs(std::string file) {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'metric_submission_port'\n";
       std::exit(1);
    } 
+
+   /*
    
+         Load rules configurations
+   
+   */
    std::optional<std::string> rule_script = 
       tbl["rules"]["rule_script"].value<std::string>();
    if (rule_script.has_value()) {
@@ -190,6 +239,77 @@ void load_configs(std::string file) {
    if (!std::filesystem::is_regular_file(rules_config.rule_script)) {
       LOG(ERROR) << TAG("load_config") << "Given rule script: " << rules_config.rule_script << " does not exist\n";
       std::exit(1);
+   }
+
+   /*
+   
+         Load optional twilio configurations
+   
+   */
+   bool twilio_configured {false};
+
+   monolith::sms::twilio_c::configuration_c twilio_config;
+   std::optional<std::string> twilio_account_id = 
+      tbl["twilio"]["account_sid"].value<std::string>();
+   if (twilio_account_id.has_value()) {
+      twilio_config.account_id = *twilio_account_id;
+      twilio_configured = true;
+   }
+
+   std::optional<std::string> twilio_auth_token = 
+      tbl["twilio"]["auth_token"].value<std::string>();
+   if (twilio_auth_token.has_value()) {
+
+      if (!twilio_configured) {
+         LOG(ERROR) << TAG("load_config") << "Twilio config missing 'auth_token'\n";
+         std::exit(1);
+      }
+
+      twilio_config.auth_token = *twilio_auth_token;
+   }
+
+   std::optional<std::string> twilio_from = 
+      tbl["twilio"]["from"].value<std::string>();
+   if (twilio_from.has_value()) {
+
+      if (!twilio_configured) {
+         LOG(ERROR) << TAG("load_config") << "Twilio config missing 'from'\n";
+         std::exit(1);
+      }
+
+      twilio_config.from = *twilio_from;
+   }
+
+   std::optional<std::string> twilio_to = 
+      tbl["twilio"]["to"].value<std::string>();
+   if (twilio_to.has_value()) {
+
+      if (!twilio_configured) {
+         LOG(ERROR) << TAG("load_config") << "Twilio config missing 'to'\n";
+         std::exit(1);
+      }
+
+      twilio_config.to = *twilio_to;
+   }
+
+   // If twilio was configured we need to instantiate the object
+   //
+   if (twilio_configured) {
+
+      twilio_backend = new monolith::sms::twilio_c(twilio_config);
+
+      // Ensure that the backend is setup
+      //
+      if (!twilio_backend->setup()) {
+         LOG(ERROR) << TAG("load_config") << "Failed to setup twilio backend\n";
+         delete twilio_backend;
+         twilio_backend = nullptr;
+      } else {
+
+         // If the thing was setup then we can set the alert's sms backend to 
+         // the twilio pointer
+         alert_config.sms_backend = twilio_backend;
+      }
    }
 }
 
@@ -213,7 +333,7 @@ void start_services() {
       std::exit(1); 
    }
 
-   rule_executor = new monolith::services::rule_executor_c(rules_config.rule_script);
+   rule_executor = new monolith::services::rule_executor_c(rules_config.rule_script, alert_config);
    if (!rule_executor->open()) {
       LOG(ERROR) << TAG("start_services") << "Failed to open rule executor script\n";
       metric_streamer->stop();
@@ -229,7 +349,7 @@ void start_services() {
       std::exit(1); 
    }
 
-   auto data_submission = new monolith::services::data_submission_c(
+   data_submission = new monolith::services::data_submission_c(
       monolith::networking::ipv4_host_port_s{
          network_config.ipv4_address,
          network_config.metric_submission_port
@@ -252,7 +372,7 @@ void start_services() {
       metric_database
    );
 
-   auto app_service = new monolith::services::app_c(
+   app_service = new monolith::services::app_c(
       monolith::networking::ipv4_host_port_s{
          network_config.ipv4_address, 
          network_config.http_port
@@ -334,6 +454,11 @@ int main(int argc, char** argv) {
    }
 
    stop_services();
+
+   // Cleanup others
+   if (twilio_backend) {
+      delete twilio_backend;
+   }
 
    return 0;
 }

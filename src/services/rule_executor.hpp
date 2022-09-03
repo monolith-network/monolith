@@ -5,6 +5,7 @@
 #include <queue>
 #include <crate/metrics/reading_v1.hpp>
 #include "interfaces/service_if.hpp"
+#include "alert/alert.hpp"
 
 namespace monolith {
 namespace services {
@@ -12,7 +13,8 @@ namespace services {
 class rule_executor_c : public service_if {
 public:
    rule_executor_c() = delete;
-   rule_executor_c(const std::string& file);
+   rule_executor_c(const std::string& file, 
+                     monolith::alert::alert_manager_c::configuration_c alert_config);
    virtual ~rule_executor_c() override final;
 
    bool open();

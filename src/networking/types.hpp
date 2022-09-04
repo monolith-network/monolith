@@ -11,16 +11,16 @@ namespace networking {
 //!        and indicates through its type that it is
 //!        meant to be ipv4
 struct ipv4_host_port_s {
-  std::string address;
-  uint32_t port;
+   std::string address;
+   uint32_t port;
 };
 
 //! \brief A structure that combines address and port
 //!        and indicates through its type that it is
 //!        meant to be ipv6
 struct ipv6_host_port_s {
-  std::string address;
-  uint32_t port;
+   std::string address;
+   uint32_t port;
 };
 
 } // namespace networking

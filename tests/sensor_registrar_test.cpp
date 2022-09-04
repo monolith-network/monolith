@@ -60,214 +60,217 @@ app = new monolith::services::app_c(
 }
 
 void teardown() {
-  delete registrar_db;
-  delete metric_db;
-  delete metric_streamer;
-  delete data_submission;
-  delete app;
+   delete registrar_db;
+   delete metric_db;
+   delete metric_streamer;
+   delete data_submission;
+   delete app;
 
-  std::filesystem::remove_all(std::string(LOGS) + std::string(".log"));
-  std::filesystem::remove_all(REGISTRAR_DB);
-  std::filesystem::remove_all(METRIC_DB);
+   std::filesystem::remove_all(std::string(LOGS) + std::string(".log"));
+   std::filesystem::remove_all(REGISTRAR_DB);
+   std::filesystem::remove_all(METRIC_DB);
 }
 }
 ;
 
 TEST(sensor_registrar_test, submit_fetch_probe_delete) {
-  using namespace std::chrono_literals;
+   using namespace std::chrono_literals;
 
-  // ---------- Start all the services ----------
-  CHECK_TRUE(metric_streamer->start());
-  CHECK_TRUE(data_submission->start());
-  CHECK_TRUE(app->start());
+   // ---------- Start all the services ----------
+   CHECK_TRUE(metric_streamer->start());
+   CHECK_TRUE(data_submission->start());
+   CHECK_TRUE(app->start());
 
-  // Create nodes/sensors
-  //
-  for (size_t i = 0; i < NUM_NODES; i++) {
+   // Create nodes/sensors
+   //
+   for (size_t i = 0; i < NUM_NODES; i++) {
 
-    crate::registrar::node_v1_c node;
-    node.set_id(std::to_string(i));
+      crate::registrar::node_v1_c node;
+      node.set_id(std::to_string(i));
 
-    for (size_t j = 0; j < NUM_SENSORS_PER_NODE; j++) {
-      crate::registrar::node_v1_c::sensor sensor;
-      sensor.id = std::to_string(i) + ":" + std::to_string(j);
-      sensor.description = "[desc]";
-      sensor.type = "[type]";
+      for (size_t j = 0; j < NUM_SENSORS_PER_NODE; j++) {
+         crate::registrar::node_v1_c::sensor sensor;
+         sensor.id = std::to_string(i) + ":" + std::to_string(j);
+         sensor.description = "[desc]";
+         sensor.type = "[type]";
 
-      node.add_sensor(sensor);
-    }
-    nodes.push_back(node);
-  }
+         node.add_sensor(sensor);
+      }
+      nodes.push_back(node);
+   }
 
-  // Submit nodes
-  //
-  crate::registrar::helper_c registrar_helper(ADDRESS, HTTP_PORT);
-  for (auto &node : nodes) {
-    if (registrar_helper.submit(node) !=
-        crate::registrar::helper_c::result::SUCCESS) {
-      FAIL("Failed to submit node to registrar");
-    }
-  }
+   // Submit nodes
+   //
+   crate::registrar::helper_c registrar_helper(ADDRESS, HTTP_PORT);
+   for (auto &node : nodes) {
+      if (registrar_helper.submit(node) !=
+          crate::registrar::helper_c::result::SUCCESS) {
+         FAIL("Failed to submit node to registrar");
+      }
+   }
 
-  std::this_thread::sleep_for(20ms);
+   std::this_thread::sleep_for(20ms);
 
-  // Ensure they all exist
-  //
-  for (auto &node : nodes) {
+   // Ensure they all exist
+   //
+   for (auto &node : nodes) {
 
-    auto [id, desc, sensor_list] = node.get_data();
+      auto [id, desc, sensor_list] = node.get_data();
 
-    crate::registrar::node_v1_c remote_node;
-    if (registrar_helper.retrieve(id, remote_node) !=
-        crate::registrar::helper_c::result::SUCCESS) {
-      FAIL("Failed to retrieve node from registrar");
-    }
+      crate::registrar::node_v1_c remote_node;
+      if (registrar_helper.retrieve(id, remote_node) !=
+          crate::registrar::helper_c::result::SUCCESS) {
+         FAIL("Failed to retrieve node from registrar");
+      }
 
-    auto [r_id, r_desc, r_sensor_list] = remote_node.get_data();
+      auto [r_id, r_desc, r_sensor_list] = remote_node.get_data();
 
-    CHECK_EQUAL_TEXT(id, r_id, "Node IDs not matched");
-    CHECK_EQUAL_TEXT(desc, r_desc, "Node DESC not matched");
-    CHECK_EQUAL_TEXT(
-        sensor_list.size(), r_sensor_list.size(),
-        "Sensor list retrieved does not match length of list sent");
+      CHECK_EQUAL_TEXT(id, r_id, "Node IDs not matched");
+      CHECK_EQUAL_TEXT(desc, r_desc, "Node DESC not matched");
+      CHECK_EQUAL_TEXT(
+          sensor_list.size(), r_sensor_list.size(),
+          "Sensor list retrieved does not match length of list sent");
 
-    for (auto i = 0; i < sensor_list.size(); i++) {
-      CHECK_EQUAL_TEXT(sensor_list[i].id, r_sensor_list[i].id,
-                       "Sensor ID did not match that of sensor ID sent");
-      CHECK_EQUAL_TEXT(sensor_list[i].description, r_sensor_list[i].description,
-                       "Sensor DESC did not match that of sensor DESC sent");
-      CHECK_EQUAL_TEXT(sensor_list[i].type, r_sensor_list[i].type,
-                       "Sensor TYPE did not match that of sensor TYPE sent");
-    }
-  }
+      for (auto i = 0; i < sensor_list.size(); i++) {
+         CHECK_EQUAL_TEXT(sensor_list[i].id, r_sensor_list[i].id,
+                          "Sensor ID did not match that of sensor ID sent");
+         CHECK_EQUAL_TEXT(sensor_list[i].description,
+                          r_sensor_list[i].description,
+                          "Sensor DESC did not match that of sensor DESC sent");
+         CHECK_EQUAL_TEXT(sensor_list[i].type, r_sensor_list[i].type,
+                          "Sensor TYPE did not match that of sensor TYPE sent");
+      }
+   }
 
-  // Delete a couple
-  //
-  libutil::random::random_entry_c<crate::registrar::node_v1_c> random_entry(
-      nodes);
-  std::vector<crate::registrar::node_v1_c> deleted_nodes;
-  for (size_t i = 0; i < NUM_NODES_DELETE; i++) {
+   // Delete a couple
+   //
+   libutil::random::random_entry_c<crate::registrar::node_v1_c> random_entry(
+       nodes);
+   std::vector<crate::registrar::node_v1_c> deleted_nodes;
+   for (size_t i = 0; i < NUM_NODES_DELETE; i++) {
 
-    auto delete_node = random_entry.get_value();
+      auto delete_node = random_entry.get_value();
 
-    auto [id, desc, sensor_list] = delete_node.get_data();
+      auto [id, desc, sensor_list] = delete_node.get_data();
 
-    if (registrar_helper.remove(id) !=
-        crate::registrar::helper_c::result::SUCCESS) {
-      FAIL("Failed to run delete for node");
-    }
-    deleted_nodes.push_back(delete_node);
-  }
+      if (registrar_helper.remove(id) !=
+          crate::registrar::helper_c::result::SUCCESS) {
+         FAIL("Failed to run delete for node");
+      }
+      deleted_nodes.push_back(delete_node);
+   }
 
-  // Make sure they don't exist
-  //
-  for (auto &node : deleted_nodes) {
+   // Make sure they don't exist
+   //
+   for (auto &node : deleted_nodes) {
 
-    auto [id, desc, sensor_list] = node.get_data();
+      auto [id, desc, sensor_list] = node.get_data();
 
-    crate::registrar::node_v1_c remote_node;
-    if (registrar_helper.retrieve(id, remote_node) !=
-        crate::registrar::helper_c::result::NOT_FOUND) {
-      FAIL("Retrieved deleted node");
-    }
-  }
+      crate::registrar::node_v1_c remote_node;
+      if (registrar_helper.retrieve(id, remote_node) !=
+          crate::registrar::helper_c::result::NOT_FOUND) {
+         FAIL("Retrieved deleted node");
+      }
+   }
 
-  // ---------------------- Now do the same with controllers / actions
-  // ----------------------
+   // ---------------------- Now do the same with controllers / actions
+   // ----------------------
 
-  // Create nodes/sensors
-  //
-  for (size_t i = 0; i < NUM_CONTROLLERS; i++) {
+   // Create nodes/sensors
+   //
+   for (size_t i = 0; i < NUM_CONTROLLERS; i++) {
 
-    std::string controller_id = std::to_string(i + (NUM_NODES * 2));
-    crate::registrar::controller_v1_c controller;
-    controller.set_id(controller_id);
+      std::string controller_id = std::to_string(i + (NUM_NODES * 2));
+      crate::registrar::controller_v1_c controller;
+      controller.set_id(controller_id);
 
-    for (size_t j = 0; j < NUM_ACTIONS_PER_NODE; j++) {
-      crate::registrar::controller_v1_c::action_s action;
-      action.id = controller_id + ":" + std::to_string(j);
-      action.description = "[desc]";
+      for (size_t j = 0; j < NUM_ACTIONS_PER_NODE; j++) {
+         crate::registrar::controller_v1_c::action_s action;
+         action.id = controller_id + ":" + std::to_string(j);
+         action.description = "[desc]";
 
-      controller.add_action(action);
-    }
-    controllers.push_back(controller);
-  }
+         controller.add_action(action);
+      }
+      controllers.push_back(controller);
+   }
 
-  // Submit nodes
-  //
-  for (auto &controller : controllers) {
-    auto res = registrar_helper.submit(controller);
-    if (res != crate::registrar::helper_c::result::SUCCESS) {
-      std::cout << "res: " << (int)res << std::endl;
-      FAIL("Failed to submit controller to registrar ");
-    }
-  }
+   // Submit nodes
+   //
+   for (auto &controller : controllers) {
+      auto res = registrar_helper.submit(controller);
+      if (res != crate::registrar::helper_c::result::SUCCESS) {
+         std::cout << "res: " << (int)res << std::endl;
+         FAIL("Failed to submit controller to registrar ");
+      }
+   }
 
-  std::this_thread::sleep_for(20ms);
+   std::this_thread::sleep_for(20ms);
 
-  // Ensure they all exist
-  //
-  for (auto &controller : controllers) {
+   // Ensure they all exist
+   //
+   for (auto &controller : controllers) {
 
-    auto [id, desc, ip, port, action_list] = controller.get_data();
+      auto [id, desc, ip, port, action_list] = controller.get_data();
 
-    crate::registrar::controller_v1_c remote_controller;
-    if (registrar_helper.retrieve(id, remote_controller) !=
-        crate::registrar::helper_c::result::SUCCESS) {
-      FAIL("Failed to retrieve controller from registrar");
-    }
+      crate::registrar::controller_v1_c remote_controller;
+      if (registrar_helper.retrieve(id, remote_controller) !=
+          crate::registrar::helper_c::result::SUCCESS) {
+         FAIL("Failed to retrieve controller from registrar");
+      }
 
-    auto [r_id, r_desc, r_ip, r_port, r_action_list] = remote_controller.get_data();
+      auto [r_id, r_desc, r_ip, r_port, r_action_list] =
+          remote_controller.get_data();
 
-    CHECK_EQUAL_TEXT(id, r_id, "Controller IDs not matched");
-    CHECK_EQUAL_TEXT(desc, r_desc, "Controller DESC not matched");
-    CHECK_EQUAL_TEXT(ip, r_ip, "Controller IP not matched");
-    CHECK_EQUAL_TEXT(port, r_port, "Controller PORT not matched");
-    CHECK_EQUAL_TEXT(
-        action_list.size(), r_action_list.size(),
-        "Action list retrieved does not match length of list sent");
+      CHECK_EQUAL_TEXT(id, r_id, "Controller IDs not matched");
+      CHECK_EQUAL_TEXT(desc, r_desc, "Controller DESC not matched");
+      CHECK_EQUAL_TEXT(ip, r_ip, "Controller IP not matched");
+      CHECK_EQUAL_TEXT(port, r_port, "Controller PORT not matched");
+      CHECK_EQUAL_TEXT(
+          action_list.size(), r_action_list.size(),
+          "Action list retrieved does not match length of list sent");
 
-    for (auto i = 0; i < action_list.size(); i++) {
-      CHECK_EQUAL_TEXT(action_list[i].id, r_action_list[i].id,
-                       "ACtion ID did not match that of action ID sent");
-      CHECK_EQUAL_TEXT(action_list[i].description, r_action_list[i].description,
-                       "Action DESC did not match that of action DESC sent");
-    }
-  }
+      for (auto i = 0; i < action_list.size(); i++) {
+         CHECK_EQUAL_TEXT(action_list[i].id, r_action_list[i].id,
+                          "ACtion ID did not match that of action ID sent");
+         CHECK_EQUAL_TEXT(action_list[i].description,
+                          r_action_list[i].description,
+                          "Action DESC did not match that of action DESC sent");
+      }
+   }
 
-  // Delete a couple
-  //
-  libutil::random::random_entry_c<crate::registrar::controller_v1_c>
-      random_controller(controllers);
-  std::vector<crate::registrar::controller_v1_c> deleted_controllers;
-  for (size_t i = 0; i < NUM_CONTROLLERS_DELETE; i++) {
+   // Delete a couple
+   //
+   libutil::random::random_entry_c<crate::registrar::controller_v1_c>
+       random_controller(controllers);
+   std::vector<crate::registrar::controller_v1_c> deleted_controllers;
+   for (size_t i = 0; i < NUM_CONTROLLERS_DELETE; i++) {
 
-    auto deleted_controller = random_controller.get_value();
+      auto deleted_controller = random_controller.get_value();
 
-    auto [id, desc, ip, port, action_list] = deleted_controller.get_data();
+      auto [id, desc, ip, port, action_list] = deleted_controller.get_data();
 
-    if (registrar_helper.remove(id) !=
-        crate::registrar::helper_c::result::SUCCESS) {
-      FAIL("Failed to run delete for controller");
-    }
-    deleted_controllers.push_back(deleted_controller);
-  }
+      if (registrar_helper.remove(id) !=
+          crate::registrar::helper_c::result::SUCCESS) {
+         FAIL("Failed to run delete for controller");
+      }
+      deleted_controllers.push_back(deleted_controller);
+   }
 
-  // Make sure they don't exist
-  //
-  for (auto &controller : deleted_controllers) {
+   // Make sure they don't exist
+   //
+   for (auto &controller : deleted_controllers) {
 
-    auto [id, desc, ip, port, action_list] = controller.get_data();
+      auto [id, desc, ip, port, action_list] = controller.get_data();
 
-    crate::registrar::controller_v1_c remote_controller;
-    if (registrar_helper.retrieve(id, remote_controller) !=
-        crate::registrar::helper_c::result::NOT_FOUND) {
-      FAIL("Retrieved deleted controller");
-    }
-  }
+      crate::registrar::controller_v1_c remote_controller;
+      if (registrar_helper.retrieve(id, remote_controller) !=
+          crate::registrar::helper_c::result::NOT_FOUND) {
+         FAIL("Retrieved deleted controller");
+      }
+   }
 
-  // ---------- Stop all the services ----------
-  CHECK_TRUE(app->stop());
-  CHECK_TRUE(data_submission->stop());
-  CHECK_TRUE(metric_streamer->stop());
+   // ---------- Stop all the services ----------
+   CHECK_TRUE(app->stop());
+   CHECK_TRUE(data_submission->stop());
+   CHECK_TRUE(metric_streamer->stop());
 }

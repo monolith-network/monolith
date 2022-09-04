@@ -14,9 +14,9 @@ constexpr char VERSION_PATCH[] = "0";
 } // namespace
 
 crate::app::version_v1_c get_version_info() {
-  return crate::app::version_v1_c(
-      APPLICATION_NAME, std::string(COMPILED_GIT_HASH),
-      {VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH});
+   return crate::app::version_v1_c(
+       APPLICATION_NAME, std::string(COMPILED_GIT_HASH),
+       {VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH});
 }
 
 } // namespace monolith

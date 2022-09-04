@@ -9,25 +9,25 @@ portal_c::portal_c(monolith::db::kv_c *registrar_db,
     : _registrar_db(registrar_db), _metric_db(metric_db) {}
 
 bool portal_c::setup_portal(httplib::Server *http_server) {
-  LOG(TRACE) << TAG("portal_c::setup_portal") << "Setup portal\n";
+   LOG(TRACE) << TAG("portal_c::setup_portal") << "Setup portal\n";
 
-  _http_server = http_server;
+   _http_server = http_server;
 
-  // Endpoint to add metric stream destination
-  _http_server->Get("/portal",
-                    std::bind(&portal_c::portal_root, this,
-                              std::placeholders::_1, std::placeholders::_2));
+   // Endpoint to add metric stream destination
+   _http_server->Get("/portal",
+                     std::bind(&portal_c::portal_root, this,
+                               std::placeholders::_1, std::placeholders::_2));
 
-  return true;
+   return true;
 }
 
 void portal_c::receive_data(crate::metrics::streams::stream_data_v1_c data) {
-  LOG(TRACE) << TAG("portal_c::receive_data") << "Got data\n";
+   LOG(TRACE) << TAG("portal_c::receive_data") << "Got data\n";
 }
 
 void portal_c::portal_root(const httplib::Request &req,
                            httplib::Response &res) {
-  std::string body = R"(
+   std::string body = R"(
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,7 +67,7 @@ void portal_c::portal_root(const httplib::Request &req,
 </html>
    )";
 
-  res.set_content(body, "text/html");
+   res.set_content(body, "text/html");
 }
 
 } // namespace portal

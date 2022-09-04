@@ -184,7 +184,7 @@ TEST(sensor_registrar_test, submit_fetch_probe_delete) {
     controller.set_id(controller_id);
 
     for (size_t j = 0; j < NUM_ACTIONS_PER_NODE; j++) {
-      crate::registrar::controller_v1_c::action action;
+      crate::registrar::controller_v1_c::action_s action;
       action.id = controller_id + ":" + std::to_string(j);
       action.description = "[desc]";
 
@@ -209,7 +209,7 @@ TEST(sensor_registrar_test, submit_fetch_probe_delete) {
   //
   for (auto &controller : controllers) {
 
-    auto [id, desc, action_list] = controller.get_data();
+    auto [id, desc, ip, port, action_list] = controller.get_data();
 
     crate::registrar::controller_v1_c remote_controller;
     if (registrar_helper.retrieve(id, remote_controller) !=
@@ -217,10 +217,12 @@ TEST(sensor_registrar_test, submit_fetch_probe_delete) {
       FAIL("Failed to retrieve controller from registrar");
     }
 
-    auto [r_id, r_desc, r_action_list] = remote_controller.get_data();
+    auto [r_id, r_desc, r_ip, r_port, r_action_list] = remote_controller.get_data();
 
     CHECK_EQUAL_TEXT(id, r_id, "Controller IDs not matched");
     CHECK_EQUAL_TEXT(desc, r_desc, "Controller DESC not matched");
+    CHECK_EQUAL_TEXT(ip, r_ip, "Controller IP not matched");
+    CHECK_EQUAL_TEXT(port, r_port, "Controller PORT not matched");
     CHECK_EQUAL_TEXT(
         action_list.size(), r_action_list.size(),
         "Action list retrieved does not match length of list sent");
@@ -242,7 +244,7 @@ TEST(sensor_registrar_test, submit_fetch_probe_delete) {
 
     auto deleted_controller = random_controller.get_value();
 
-    auto [id, desc, action_list] = deleted_controller.get_data();
+    auto [id, desc, ip, port, action_list] = deleted_controller.get_data();
 
     if (registrar_helper.remove(id) !=
         crate::registrar::helper_c::result::SUCCESS) {
@@ -255,7 +257,7 @@ TEST(sensor_registrar_test, submit_fetch_probe_delete) {
   //
   for (auto &controller : deleted_controllers) {
 
-    auto [id, desc, action_list] = controller.get_data();
+    auto [id, desc, ip, port, action_list] = controller.get_data();
 
     crate::registrar::controller_v1_c remote_controller;
     if (registrar_helper.retrieve(id, remote_controller) !=

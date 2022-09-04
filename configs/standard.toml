@@ -18,8 +18,10 @@ rule_script = "rules/default.lua"
 max_alert_sends = 0                # 0 = infinite
 alert_cooldown_seconds = 40.0      # Seconds to cool down per alert id
 
-[twilio]
-account_sid = ""
-auth_token = ""
-from = ""
-to = ""
+#  Optional setup for sms backend
+#
+# [twilio]
+# account_sid = ""
+# auth_token = ""
+# from = ""
+# to = ""

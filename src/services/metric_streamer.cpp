@@ -156,11 +156,13 @@ void metric_streamer_c::perform_destination_updates() {
       if (contains_endpoint(update.entry, idx)) {
         continue;
       } else {
-        const std::lock_guard<std::mutex> lock(_stream_receivers_mutex);
-        LOG(INFO) << TAG("metric_streamer_c::perform_destination_updates")
-                  << "Added: " << update.entry.address << ":"
-                  << update.entry.port << "\n";
-        _stream_receivers.push_back(update.entry);
+        {
+          const std::lock_guard<std::mutex> lock(_stream_receivers_mutex);
+          _stream_receivers.push_back(update.entry);
+        }
+        LOG(TRACE) << TAG("metric_streamer_c::perform_destination_updates")
+                   << "Added: " << update.entry.address << ":"
+                   << update.entry.port << "\n";
       }
       break;
     }
@@ -169,8 +171,14 @@ void metric_streamer_c::perform_destination_updates() {
       // we can have a means to erase it
       //
       if (contains_endpoint(update.entry, idx)) {
-        const std::lock_guard<std::mutex> lock(_stream_receivers_mutex);
-        _stream_receivers.erase(_stream_receivers.begin() + idx);
+        {
+          const std::lock_guard<std::mutex> lock(_stream_receivers_mutex);
+          _stream_receivers.erase(_stream_receivers.begin() + idx);
+        }
+
+        LOG(TRACE) << TAG("metric_streamer_c::perform_destination_updates")
+                   << "Deleted: " << update.entry.address << ":"
+                   << update.entry.port << "\n";
       }
       break;
     }

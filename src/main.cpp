@@ -21,6 +21,8 @@
 #include "services/metric_streamer.hpp"
 #include "services/rule_executor.hpp"
 
+#include "version.hpp"
+
 using namespace std::chrono_literals;
 
 namespace {
@@ -434,6 +436,13 @@ void stop_services() {
   }
 }
 
+void display_version_info() {
+  auto [name, hash, semver] = monolith::get_version_info().get_data();
+
+  std::cout << name << " | Version: " << semver.major << "." << semver.minor
+            << "." << semver.patch << " | Build hash: " << hash << std::endl;
+}
+
 int main(int argc, char **argv) {
 
   if (argc != 2) {
@@ -443,7 +452,7 @@ int main(int argc, char **argv) {
 
   load_configs(argv[1]);
 
-  crate::common::setup_logger("monolith_app", AixLog::Severity::debug);
+  crate::common::setup_logger("monolith_app", AixLog::Severity::trace);
 
   // setup signal handlers
   //
@@ -461,6 +470,8 @@ int main(int argc, char **argv) {
   }
 
   start_services();
+
+  display_version_info();
 
   while (active.load()) {
     std::this_thread::sleep_for(100ms);

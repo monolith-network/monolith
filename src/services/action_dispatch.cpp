@@ -104,8 +104,10 @@ void action_dispatch_c::burst() {
          }
       }
 
-      LOG(FATAL) << TAG("action_dispatch_c::burst")
-                 << "Failed to write action to destination\n";
+      if (!sent) {
+         LOG(FATAL) << TAG("action_dispatch_c::burst")
+                  << "Failed to write action to destination\n";
+      }
    }
 }
 

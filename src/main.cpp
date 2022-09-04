@@ -19,6 +19,7 @@
 #include "services/data_submission.hpp"
 #include "services/metric_db.hpp"
 #include "services/metric_streamer.hpp"
+#include "services/action_dispatch.hpp"
 #include "services/rule_executor.hpp"
 
 #include "version.hpp"
@@ -85,8 +86,9 @@ std::vector<crate::metrics::streams::stream_receiver_if>
 monolith::services::data_submission_c *data_submission{nullptr};
 monolith::services::metric_db_c *metric_database{nullptr};
 monolith::services::rule_executor_c *rule_executor{nullptr};
+monolith::services::action_dispatch_c *action_dispatch{nullptr};
+monolith::services::metric_streamer_c *metric_streamer{nullptr};
 monolith::services::app_c *app_service{nullptr};
-std::unordered_map<std::string, monolith::service_if *> services;
 
 /*
       Alert backends
@@ -341,6 +343,43 @@ void load_configs(std::string file) {
   }
 }
 
+void cleanup() {
+
+    if (app_service) {
+      app_service->stop();
+      delete app_service;
+    }
+
+    if (data_submission) {
+      data_submission->stop();
+      delete data_submission;
+    }
+
+    if (rule_executor) {
+      rule_executor->stop();
+      delete rule_executor;
+    }
+    
+    if (action_dispatch) {
+      action_dispatch->stop();
+      delete action_dispatch;
+    }
+    
+    if (metric_streamer) {
+      metric_streamer->stop();
+      delete metric_streamer;
+    }
+
+    if (metric_database) {
+      metric_database->stop();
+      delete metric_database;
+    }
+
+    if (registrar_database) {
+      delete registrar_database;
+    }
+}
+
 void start_services() {
 
   LOG(INFO) << TAG("start_services") << "Starting services\n";
@@ -348,10 +387,11 @@ void start_services() {
   registrar_database =
       new monolith::db::kv_c(monolith_config.registration_db_path);
 
-  auto metric_streamer = new monolith::services::metric_streamer_c();
+  metric_streamer = new monolith::services::metric_streamer_c();
 
   if (!metric_streamer->start()) {
     LOG(ERROR) << TAG("start_services") << "Failed to start metric streamer\n";
+    cleanup();
     std::exit(1);
   }
 
@@ -360,25 +400,31 @@ void start_services() {
   if (!metric_database->start()) {
     LOG(ERROR) << TAG("start_services")
                << "Failed to start metric database service\n";
-    delete metric_streamer;
+    cleanup();
+    std::exit(1);
+  }
+
+  action_dispatch = new monolith::services::action_dispatch_c(registrar_database);
+
+  if (!action_dispatch->start()) {
+    LOG(ERROR) << TAG("start_services")
+               << "Failed to start action dispatch service\n";
+    cleanup();
     std::exit(1);
   }
 
   rule_executor = new monolith::services::rule_executor_c(
-      rules_config.rule_script, alert_config);
+      rules_config.rule_script, alert_config, action_dispatch);
   if (!rule_executor->open()) {
     LOG(ERROR) << TAG("start_services")
                << "Failed to open rule executor script\n";
-    metric_streamer->stop();
-    delete metric_streamer;
-    delete rule_executor;
+    cleanup();
     std::exit(1);
   }
 
   if (!rule_executor->start()) {
     LOG(ERROR) << TAG("start_services") << "Failed to start rule executor\n";
-    delete metric_streamer;
-    delete rule_executor;
+    cleanup();
     std::exit(1);
   }
 
@@ -391,6 +437,7 @@ void start_services() {
   if (!data_submission->start()) {
     LOG(ERROR) << TAG("start_services")
                << "Failed to start data submission server\n";
+    cleanup();
     std::exit(1);
   }
 
@@ -407,33 +454,16 @@ void start_services() {
   if (!app_service->start()) {
     LOG(ERROR) << TAG("start_services")
                << "Failed to start application server\n";
+    cleanup();
     std::exit(1);
   }
 
-  services["rule_executor"] = rule_executor;
-  services["data_submission"] = data_submission;
-  services["metric_stream"] = metric_streamer;
-  services["application"] = app_service;
 }
 
 void stop_services() {
 
   LOG(INFO) << TAG("stop_services") << "Stopping services\n";
-
-  for (auto &[service_name, service] : services) {
-    if (service && service->is_running()) {
-      if (!service->stop()) {
-        LOG(ERROR) << TAG("stop_services")
-                   << "Failed to stop service : " << service_name << "\n";
-      } else {
-        delete service;
-      }
-    }
-  }
-
-  if (registrar_database) {
-    delete registrar_database;
-  }
+  cleanup();
 }
 
 void display_version_info() {
@@ -452,7 +482,7 @@ int main(int argc, char **argv) {
 
   load_configs(argv[1]);
 
-  crate::common::setup_logger("monolith_app", AixLog::Severity::trace);
+  crate::common::setup_logger("monolith_app", AixLog::Severity::debug);
 
   // setup signal handlers
   //

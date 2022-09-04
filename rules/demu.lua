@@ -12,6 +12,10 @@ sensor_id_humidity = "44d7dae7-49a5-4510-b589-b62c468184f0"
 sensor_id_flame = "f360c409-2c4d-420f-bf2d-56c9056d6583"
 sensor_id_air_pressure = "0c23501a-3fb6-42f5-88eb-071e7a74b7d6"
 
+-- Controllers and actions on device emulator
+fire_extinguisher_controller = "fire-extinguisher-controller"
+fire_extinguisher_controller_toggle = "toggle_extinguisher"
+
 --
 -- Light sensor object
 --
@@ -99,7 +103,12 @@ function accept_reading_v1_from_monolith(timestamp, node_id, sensor_id, value)
    -- Check flame
    if sensor_id == sensor_id_flame then
       if value > 0 then
-         monolith_trigger_alert(2, "There is literally a fire detected. Intensity: " .. value)
+
+         -- Send a text saying something is on fire
+         monolith_trigger_alert(2, "There is literally a fire detected. Intensity: " .. value .. "> Turning on fire extinguisher")
+
+         -- Turn on fire extinquisher
+         monolith_dispatch_action("fire_extinguisher", "toggle_extinguisher", 1.0)
       end
       return
    end

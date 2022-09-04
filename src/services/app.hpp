@@ -73,6 +73,8 @@ private:
                       size_t expected_items);
   void http_root(const httplib::Request &req, httplib::Response &res);
 
+  void version(const httplib::Request &req, httplib::Response &res);
+
   // Stream receiver registration and de-registration
   //
   void metric_stream_add(const httplib::Request &req, httplib::Response &res);

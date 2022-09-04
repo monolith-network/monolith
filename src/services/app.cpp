@@ -163,7 +163,7 @@ bool app_c::setup_endpoints() {
   _app_server->Get("/",
                    std::bind(&app_c::http_root, this, std::placeholders::_1,
                              std::placeholders::_2));
- // Version info
+  // Version info
   _app_server->Get("/version",
                    std::bind(&app_c::version, this, std::placeholders::_1,
                              std::placeholders::_2));
@@ -277,19 +277,17 @@ void app_c::http_root(const httplib::Request &req, httplib::Response &res) {
 }
 
 void app_c::version(const httplib::Request &req, httplib::Response &res) {
-   std::string encoded;
-   auto version_info = monolith::get_version_info();
-   if (!version_info.encode_to(encoded)) {
-      LOG(WARNING) << TAG("app_c::version") << "Failed to encode version info\n";
-      res.set_content(
-         get_json_response(return_codes_e::INTERNAL_SERVER_500,
-                           "Failed to encode version info"),
-         "application/json");
-      return;
-   }
-   res.set_content(
-      get_raw_json_response(return_codes_e::OKAY, encoded),
-      "application/json");
+  std::string encoded;
+  auto version_info = monolith::get_version_info();
+  if (!version_info.encode_to(encoded)) {
+    LOG(WARNING) << TAG("app_c::version") << "Failed to encode version info\n";
+    res.set_content(get_json_response(return_codes_e::INTERNAL_SERVER_500,
+                                      "Failed to encode version info"),
+                    "application/json");
+    return;
+  }
+  res.set_content(get_raw_json_response(return_codes_e::OKAY, encoded),
+                  "application/json");
 }
 
 void app_c::metric_stream_add(const httplib::Request &req,

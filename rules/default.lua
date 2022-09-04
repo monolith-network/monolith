@@ -6,6 +6,6 @@ function accept_reading_v1_from_monolith(timestamp, node_id, sensor_id, value)
 
    print("Lua got metric reading| ts:" .. timestamp .. ", node:" .. node_id .. ", sensor:" .. sensor_id .. ", value:" .. value)
 
-
-   -- monolith_trigger_alert(0, "Alert message")
+   --monolith_trigger_alert(0, "Alert message")
+   --monolith_dispatch_action("controller_id", "action_id", 42.314)
 end

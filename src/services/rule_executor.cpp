@@ -2,6 +2,7 @@
 #include <crate/externals/aixlog/logger.hpp>
 #include <filesystem>
 
+
 extern "C" {
 #include <lua5.3/lauxlib.h>
 #include <lua5.3/lua.h>
@@ -16,6 +17,7 @@ std::atomic<bool> file_open{false};
 std::atomic<uint64_t> instance_counter{0};
 lua_State *L{nullptr};
 monolith::alert::alert_manager_c *alert_manager{nullptr};
+monolith::services::action_dispatch_c* action_dispatcher {nullptr};
 
 constexpr char LUA_FUNC_ACCEPT_READING_V1[] = "accept_reading_v1_from_monolith";
 
@@ -63,7 +65,7 @@ int lua_monolith_trigger_alert(lua_State *L) {
 
   if (!lua_isstring(L, 2)) {
     LOG(ERROR) << TAG("lua_monolith_trigger_alert")
-               << "Error: Expected firssecondt parameter to be a string \n";
+               << "Error: Expected second parameter to be a string \n";
     return -2;
   }
 
@@ -73,11 +75,60 @@ int lua_monolith_trigger_alert(lua_State *L) {
   return 0;
 }
 
+int lua_monolith_dispatch_action(lua_State *L) {
+
+  if (!lua_isstring(L, 1)) {
+    LOG(ERROR) << TAG("lua_monolith_dispatch_action")
+               << "Error: Expected first parameter to be a string \n";
+    return -1;
+  }
+
+  if (!lua_isstring(L, 2)) {
+    LOG(ERROR) << TAG("lua_monolith_dispatch_action")
+               << "Error: Expected second parameter to be a string \n";
+    return -2;
+  }
+
+  if (!lua_isnumber(L, 3)) {
+    LOG(ERROR) << TAG("lua_monolith_dispatch_action")
+               << "Error: Expected third parameter to be a number \n";
+    return -3;
+  }
+
+  std::string controller_id = lua_tostring(L, 1);
+  std::string action_id = lua_tostring(L, 2);
+  double value = lua_tonumber(L, 3);
+
+  LOG(TRACE) << TAG("lua_monolith_dispatch_action")
+              << "Issue action |  cid: "
+              << controller_id
+              << " | aid: "
+              << action_id
+              << " | value: "
+              << value
+              << "\n";
+
+  if (action_dispatcher) {
+   if (!action_dispatcher->dispatch(controller_id, action_id, value)) {
+    LOG(ERROR) << TAG("lua_monolith_dispatch_action")
+               << "Failed to enqueue action\n";
+    return -4;
+   }
+  } else {
+    LOG(ERROR) << TAG("lua_monolith_dispatch_action")
+               << "Action dispatcher not set \n";
+    return -5;
+  }
+
+  return 0;
+}
+
 /*
    Setup file statics
 */
 void setup_statics(
-    monolith::alert::alert_manager_c::configuration_c alert_config) {
+    monolith::alert::alert_manager_c::configuration_c alert_config,
+    monolith::services::action_dispatch_c* dispatcher) {
   // Check if Lua is setup
   if (setup.load()) {
     return;
@@ -86,11 +137,10 @@ void setup_statics(
   L = luaL_newstate();
   luaL_openlibs(L);
   lua_register(L, "monolith_trigger_alert", lua_monolith_trigger_alert);
+  lua_register(L, "monolith_dispatch_action", lua_monolith_dispatch_action);
 
-  // TOOD:
-  // When we start piping confige to the manager do so via the rule_executor
-  // call to this method
   alert_manager = new monolith::alert::alert_manager_c(alert_config);
+  action_dispatcher = dispatcher;
   setup.store(true);
 }
 
@@ -106,6 +156,8 @@ void cleanup_statics() {
   L = nullptr;
   delete alert_manager;
   alert_manager = nullptr;
+  delete action_dispatcher;
+  action_dispatcher = nullptr;
 }
 } // namespace
 
@@ -114,11 +166,12 @@ namespace services {
 
 rule_executor_c::rule_executor_c(
     const std::string &file,
-    monolith::alert::alert_manager_c::configuration_c alert_config)
+    monolith::alert::alert_manager_c::configuration_c alert_config,
+      monolith::services::action_dispatch_c* dispatcher)
     : _file(file) {
 
   instance_counter.fetch_add(1);
-  setup_statics(alert_config);
+  setup_statics(alert_config, dispatcher);
 }
 
 rule_executor_c::~rule_executor_c() {

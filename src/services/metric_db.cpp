@@ -8,7 +8,20 @@ namespace services {
 
 using namespace std::chrono_literals;
 
-metric_db_c::metric_db_c(const std::string &file) : _file(file) {}
+namespace {
+uint64_t get_now() {
+   return std::chrono::duration_cast<std::chrono::seconds>(
+              std::chrono::system_clock::now().time_since_epoch())
+       .count();
+}
+}
+
+metric_db_c::metric_db_c(const std::string &file,
+               bool enable_weekly_limit,
+               bool enable_rollups) 
+   : _file(file), 
+      _limit_weekly(enable_weekly_limit), 
+      _perform_rollups(enable_rollups) {}
 
 metric_db_c::~metric_db_c() { stop(); }
 
@@ -37,6 +50,47 @@ bool metric_db_c::start() {
    )
    )");
 
+   /*
+      If we've been told that we are purging record > 1 week do so before 
+      we potentially rollup a database that potentially has a lot of records
+   */
+   if (_limit_weekly) {
+
+      LOG(INFO) << TAG("metric_db_c::start") << "Performing pre-flight database prune on old (> 1 Week) records\n";
+
+      if (!purge_weekly()) {
+         LOG(ERROR) << TAG("metric_db_c::start") << "Failed to remove records > 1 week\n";
+         return false;
+      }
+   }
+
+   /*
+      Its possible that we had rollups enabled on a database that has never
+      been rolled up before so before we kick off the service we want to pre 
+      rollup everything as depending on the number of metrics stored, it might
+      take some time
+   */
+   if (_perform_rollups) {
+
+      LOG(INFO) << TAG("metric_db_c::start") << "Performing pre-flight rollup check (this might take a moment)\n";
+
+      _db->execute(R"(
+      CREATE TABLE IF NOT EXISTS rollups (
+         id INTEGER PRIMARY KEY AUTOINCREMENT,
+         range_start BIGINT,
+         range_end BIGINT,
+         quantity INT
+      )
+      )");
+
+      if (!check_rollups()) {
+         LOG(WARNING) << TAG("metric_db_c::start") << "Failed to perform pre-flight rollups\n";
+         delete _db;
+         _db = nullptr;
+         return false;
+      }
+   }
+
    p_running.store(true);
    p_thread = std::thread(&metric_db_c::run, this);
 
@@ -64,10 +118,96 @@ bool metric_db_c::stop() {
    return true;
 }
 
+/*
+   Perform the weekly prune
+*/
+bool metric_db_c::purge_weekly() {
+   auto now = get_now();
+   auto last_week = now - ONE_WEEK_IN_SECONDS;
+   std::string statement = "delete from metrics where timestamp < " + std::to_string(last_week) + ";";
+   _db->execute(statement.c_str());
+   _last_purge = get_now();
+   return true;
+}
+
+/*
+   Check the rollup table to see when the last rollup was performed and ensure
+   that all data since then is rolled up into the correct rollup groups
+
+   Note: No mutexing needed here. We are called from ::run so all bursting either
+         has happened or will happen after this. Any fetch/store requests will be
+         queued up while this runs 
+
+
+   ------- THOUGHTS:
+
+         Perhaps rollups should lag behind some amount of time (day or hour maybe?)
+         This would greatly decrease the likelyhood of metrics falling between rollup segments
+         as data should be submitted as soon as its collected. 
+*/
+bool metric_db_c::check_rollups() {
+
+   _last_rollup = get_now();
+
+   // Pull the latest entry from `rollups` table and figure out how many minutes 
+   // have passed since then. For every minute, call perform_rollup 
+   // which will rollup that data by averaging out the value of each reading
+   // within that range
+
+   auto stmt_latest_rollup = _db->prepare<int>("select MAX(id) from rollups");
+
+   int latest_id = -1;
+   for (const auto &id : stmt_latest_rollup.execute_cursor()) {
+      latest_id = id;
+   }
+
+   uint64_t start_range{0};
+
+   if (latest_id == -1) {
+      LOG(DEBUG) << TAG("metric_db_c::check_rollups") << "Perfoming very first rollup\n";
+
+      // Select the first metric that exists and set start_range to the time it was submitted
+      // if empty, we are done and can return
+
+   } else {
+
+      // Select the `range_end` of the latest_id and set `start_range` to that value
+
+   }
+
+   // 
+   uint64_t end_range = get_now();
+
+
+
+
+   return false;
+}
+
+/*
+   Perform the database rollup for a given range
+*/
+bool metric_db_c::perform_rollup(uint64_t start_time, uint64_t end_time) {
+
+   return false;
+}
+
 void metric_db_c::run() {
 
    while (p_running.load()) {
       std::this_thread::sleep_for(100ms);
+
+      // Check if its time for the weekly database purge
+      if (_limit_weekly && (get_now() - _last_purge > ONE_WEEK_IN_SECONDS)) {
+         purge_weekly();
+      }
+
+      // Check for rollups once a minute
+      if (_perform_rollups && (get_now() - _last_rollup > 60)) {
+         check_rollups();
+      }
+
+      // Bust out data storage / retrieval requests
       burst();
    }
 }
@@ -100,22 +240,22 @@ void metric_db_c::burst() {
 
       // Determine what the request is attempting to do and route it
       switch (req->type) {
-      case request_type::SUBMIT:
+      case request_type_e::SUBMIT:
          store_metric(static_cast<submission_c *>(req)->entry);
          break;
-      case request_type::FETCH_NODES:
+      case request_type_e::FETCH_NODES:
          fetch_metric(static_cast<fetch_nodes_c *>(req));
          break;
-      case request_type::FETCH_SENSORS:
+      case request_type_e::FETCH_SENSORS:
          fetch_metric(static_cast<fetch_sensors_c *>(req));
          break;
-      case request_type::FETCH_RANGE:
+      case request_type_e::FETCH_RANGE:
          fetch_metric(static_cast<fetch_range_c *>(req));
          break;
-      case request_type::FETCH_AFTER:
+      case request_type_e::FETCH_AFTER:
          fetch_metric(static_cast<fetch_after_c *>(req));
          break;
-      case request_type::FETCH_BEFORE:
+      case request_type_e::FETCH_BEFORE:
          fetch_metric(static_cast<fetch_before_c *>(req));
          break;
       }

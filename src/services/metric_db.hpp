@@ -46,7 +46,11 @@ class metric_db_c : public service_if {
 
    //! \brief Create the database
    //! \param file The file to open for the database
-   metric_db_c(const std::string &file);
+   //! \param enable_weekly_limit No metric over 7 days old will remain
+   //! \param enable_rollup Perform database rollups
+   metric_db_c(const std::string &file,
+               bool enable_weekly_limit,
+               bool enable_rollups);
 
    //! \brief Close and destroy the database
    virtual ~metric_db_c() override final;
@@ -70,8 +74,9 @@ class metric_db_c : public service_if {
 
  private:
    static constexpr uint16_t MAX_BURST = 100;
+   static constexpr uint64_t ONE_WEEK_IN_SECONDS = 604800;
 
-   enum class request_type {
+   enum class request_type_e {
       SUBMIT,
       FETCH_NODES,
       FETCH_SENSORS,
@@ -84,15 +89,15 @@ class metric_db_c : public service_if {
     public:
       request_if() = delete;
       virtual ~request_if() {}
-      request_if(request_type type) : type(type) {}
-      request_type type;
+      request_if(request_type_e type) : type(type) {}
+      request_type_e type;
    };
 
    class submission_c : public request_if {
     public:
       submission_c() = delete;
       submission_c(crate::metrics::sensor_reading_v1_c metrics_entry)
-          : request_if(request_type::SUBMIT), entry(metrics_entry) {}
+          : request_if(request_type_e::SUBMIT), entry(metrics_entry) {}
       crate::metrics::sensor_reading_v1_c entry;
    };
 
@@ -100,7 +105,7 @@ class metric_db_c : public service_if {
     public:
       fetch_nodes_c() = delete;
       fetch_nodes_c(fetch_s metrics_fetch)
-          : request_if(request_type::FETCH_NODES), fetch(metrics_fetch) {}
+          : request_if(request_type_e::FETCH_NODES), fetch(metrics_fetch) {}
       fetch_s fetch;
    };
 
@@ -108,7 +113,7 @@ class metric_db_c : public service_if {
     public:
       fetch_sensors_c() = delete;
       fetch_sensors_c(fetch_s metrics_fetch, std::string node_id)
-          : request_if(request_type::FETCH_SENSORS), node(node_id),
+          : request_if(request_type_e::FETCH_SENSORS), node(node_id),
             fetch(metrics_fetch) {}
       std::string node;
       fetch_s fetch;
@@ -119,7 +124,7 @@ class metric_db_c : public service_if {
       fetch_range_c() = delete;
       fetch_range_c(fetch_s metrics_fetch, std::string node_id, int64_t start,
                     int64_t end)
-          : request_if(request_type::FETCH_RANGE), node(node_id), start(start),
+          : request_if(request_type_e::FETCH_RANGE), node(node_id), start(start),
             end(end), fetch(metrics_fetch) {}
       std::string node;
       int64_t start;
@@ -131,7 +136,7 @@ class metric_db_c : public service_if {
     public:
       fetch_after_c() = delete;
       fetch_after_c(fetch_s metrics_fetch, std::string node_id, int64_t time)
-          : request_if(request_type::FETCH_AFTER), node(node_id), time(time),
+          : request_if(request_type_e::FETCH_AFTER), node(node_id), time(time),
             fetch(metrics_fetch) {}
       std::string node;
       int64_t time;
@@ -142,7 +147,7 @@ class metric_db_c : public service_if {
     public:
       fetch_before_c() = delete;
       fetch_before_c(fetch_s metrics_fetch, std::string node_id, int64_t time)
-          : request_if(request_type::FETCH_BEFORE), node(node_id), time(time),
+          : request_if(request_type_e::FETCH_BEFORE), node(node_id), time(time),
             fetch(metrics_fetch) {}
       std::string node;
       int64_t time;
@@ -150,9 +155,18 @@ class metric_db_c : public service_if {
    };
 
    std::string _file;
+   bool _limit_weekly{false};
+   bool _perform_rollups{false};
    sqlitelib::Sqlite *_db{nullptr};
    std::mutex _request_queue_mutex;
    std::queue<request_if *> _request_queue;
+   uint64_t _last_purge{0};
+   uint64_t _last_rollup{0};
+
+
+   bool purge_weekly();
+   bool check_rollups();
+   bool perform_rollup(uint64_t start_time, uint64_t end_time);
 
    void run();
    void burst();

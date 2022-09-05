@@ -29,15 +29,14 @@ using namespace std::chrono_literals;
 namespace {
 
 /*
-      Monolith configuration
+      Application configuration
 */
-struct monolith_configuration_s {
+struct app_configuration_s {
    std::string instance_name;
    std::string log_file_name;
    std::string registration_db_path;
-   std::string metric_db_path;
 };
-monolith_configuration_s monolith_config;
+app_configuration_s app_config;
 
 /*
       Networking configuration
@@ -50,6 +49,17 @@ struct networking_configuration_s {
    uint32_t registration_port{9001};
 };
 networking_configuration_s network_config;
+
+/*
+      Rules configuration
+*/
+struct dabase_configuration_s {
+   bool save_metrics{false};
+   bool rollup_metrics{false};
+   bool limit_weekly{false};
+   std::string path;
+};
+dabase_configuration_s database_config;
 
 /*
       Rules configuration
@@ -139,7 +149,7 @@ void load_configs(std::string file) {
    std::optional<std::string> instance_name =
        tbl["monolith"]["instance_name"].value<std::string>();
    if (instance_name.has_value()) {
-      monolith_config.instance_name = *instance_name;
+      app_config.instance_name = *instance_name;
    } else {
       LOG(ERROR) << TAG("load_config")
                  << "Missing config for 'instance_name'\n";
@@ -149,7 +159,7 @@ void load_configs(std::string file) {
    std::optional<std::string> log_file_name =
        tbl["monolith"]["log_file_name"].value<std::string>();
    if (log_file_name.has_value()) {
-      monolith_config.log_file_name = *log_file_name;
+      app_config.log_file_name = *log_file_name;
    } else {
       LOG(ERROR) << TAG("load_config")
                  << "Missing config for 'log_file_name'\n";
@@ -159,20 +169,10 @@ void load_configs(std::string file) {
    std::optional<std::string> registration_db_path =
        tbl["monolith"]["registration_db_path"].value<std::string>();
    if (registration_db_path.has_value()) {
-      monolith_config.registration_db_path = *registration_db_path;
+      app_config.registration_db_path = *registration_db_path;
    } else {
       LOG(ERROR) << TAG("load_config")
                  << "Missing config for 'registration_db_path'\n";
-      std::exit(1);
-   }
-
-   std::optional<std::string> metric_db_path =
-       tbl["monolith"]["metric_db_path"].value<std::string>();
-   if (metric_db_path.has_value()) {
-      monolith_config.metric_db_path = *metric_db_path;
-   } else {
-      LOG(ERROR) << TAG("load_config")
-                 << "Missing config for 'metric_db_path'\n";
       std::exit(1);
    }
 
@@ -214,6 +214,53 @@ void load_configs(std::string file) {
    } else {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'http_port'\n";
       std::exit(1);
+   }
+
+   /*
+
+         Load metric_database configurations
+
+   */
+   std::optional<bool> save_metrics = tbl["metric_database"]["save_metrics"].value<bool>();
+   if (save_metrics.has_value()) {
+      database_config.save_metrics = *save_metrics;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'save_metrics'\n";
+      std::exit(1);
+   }
+
+   std::optional<bool> rollup_metrics = tbl["metric_database"]["rollup_metrics"].value<bool>();
+   if (rollup_metrics.has_value()) {
+      database_config.rollup_metrics = *rollup_metrics;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'rollup_metrics'\n";
+      std::exit(1);
+   }
+
+   std::optional<bool> limit_weekly = tbl["metric_database"]["limit_weekly"].value<bool>();
+   if (limit_weekly.has_value()) {
+      database_config.limit_weekly = *limit_weekly;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'limit_weekly'\n";
+      std::exit(1);
+   }
+
+   if ((rollup_metrics || limit_weekly) && !save_metrics) {
+      LOG(ERROR) << TAG("load_config") << "Invalid confguration: metric_database::save_metrics \
+      must be set to enable rollups and/or limit metric saves\n";
+      std::exit(1);
+   } 
+
+   if (save_metrics) {
+      std::optional<std::string> metric_db_path =
+         tbl["metric_database"]["path"].value<std::string>();
+      if (metric_db_path.has_value()) {
+         database_config.path = *metric_db_path;
+      } else {
+         LOG(ERROR) << TAG("load_config")
+                  << "Missing metric_database config for 'path'\n";
+         std::exit(1);
+      }
    }
 
    /*
@@ -377,7 +424,7 @@ void start_services() {
    LOG(INFO) << TAG("start_services") << "Starting services\n";
 
    registrar_database =
-       new monolith::db::kv_c(monolith_config.registration_db_path);
+       new monolith::db::kv_c(app_config.registration_db_path);
 
    metric_streamer = new monolith::services::metric_streamer_c();
 
@@ -388,13 +435,17 @@ void start_services() {
       std::exit(1);
    }
 
-   metric_database =
-       new monolith::services::metric_db_c(monolith_config.metric_db_path);
-   if (!metric_database->start()) {
-      LOG(ERROR) << TAG("start_services")
-                 << "Failed to start metric database service\n";
-      cleanup();
-      std::exit(1);
+   if (database_config.save_metrics) {
+      metric_database =
+         new monolith::services::metric_db_c(database_config.path, 
+                                                database_config.limit_weekly, 
+                                                database_config.rollup_metrics);
+      if (!metric_database->start()) {
+         LOG(ERROR) << TAG("start_services")
+                  << "Failed to start metric database service\n";
+         cleanup();
+         std::exit(1);
+      }
    }
 
    action_dispatch =

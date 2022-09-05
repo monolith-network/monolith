@@ -42,11 +42,8 @@ app_configuration_s app_config;
       Networking configuration
 */
 struct networking_configuration_s {
-   bool use_ipv6{false};
    std::string ipv4_address;
-   std::string ipv6_address;
    uint32_t http_port{8080};
-   uint32_t registration_port{9001};
 };
 networking_configuration_s network_config;
 
@@ -55,8 +52,7 @@ networking_configuration_s network_config;
 */
 struct dabase_configuration_s {
    bool save_metrics{false};
-   bool rollup_metrics{false};
-   bool limit_weekly{false};
+   uint64_t metric_expiration_time_sec{0};
    std::string path;
 };
 dabase_configuration_s database_config;
@@ -181,29 +177,12 @@ void load_configs(std::string file) {
          Load networking configurations
 
    */
-   std::optional<bool> use_ipv6 = tbl["networking"]["use_ipv6"].value<bool>();
-   if (use_ipv6.has_value()) {
-      network_config.use_ipv6 = *use_ipv6;
-   } else {
-      LOG(ERROR) << TAG("load_config") << "Missing config for 'use_ipv6'\n";
-      std::exit(1);
-   }
-
    std::optional<std::string> ipv4_address =
        tbl["networking"]["ipv4_address"].value<std::string>();
    if (ipv4_address.has_value()) {
       network_config.ipv4_address = *ipv4_address;
    } else {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'ipv4_address'\n";
-      std::exit(1);
-   }
-
-   std::optional<std::string> ipv6_address =
-       tbl["networking"]["ipv6_address"].value<std::string>();
-   if (ipv6_address.has_value()) {
-      network_config.ipv6_address = *ipv6_address;
-   } else {
-      LOG(ERROR) << TAG("load_config") << "Missing config for 'ipv6_address'\n";
       std::exit(1);
    }
 
@@ -229,27 +208,13 @@ void load_configs(std::string file) {
       std::exit(1);
    }
 
-   std::optional<bool> rollup_metrics = tbl["metric_database"]["rollup_metrics"].value<bool>();
-   if (rollup_metrics.has_value()) {
-      database_config.rollup_metrics = *rollup_metrics;
+   std::optional<uint64_t> metric_expiration_time_sec = tbl["metric_database"]["metric_expiration_time_sec"].value<uint64_t>();
+   if (metric_expiration_time_sec.has_value()) {
+      database_config.metric_expiration_time_sec = *metric_expiration_time_sec;
    } else {
-      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'rollup_metrics'\n";
+      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'metric_expiration_time_sec'\n";
       std::exit(1);
    }
-
-   std::optional<bool> limit_weekly = tbl["metric_database"]["limit_weekly"].value<bool>();
-   if (limit_weekly.has_value()) {
-      database_config.limit_weekly = *limit_weekly;
-   } else {
-      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'limit_weekly'\n";
-      std::exit(1);
-   }
-
-   if ((rollup_metrics || limit_weekly) && !save_metrics) {
-      LOG(ERROR) << TAG("load_config") << "Invalid confguration: metric_database::save_metrics \
-      must be set to enable rollups and/or limit metric saves\n";
-      std::exit(1);
-   } 
 
    if (save_metrics) {
       std::optional<std::string> metric_db_path =
@@ -438,8 +403,7 @@ void start_services() {
    if (database_config.save_metrics) {
       metric_database =
          new monolith::services::metric_db_c(database_config.path, 
-                                                database_config.limit_weekly, 
-                                                database_config.rollup_metrics);
+                                             database_config.metric_expiration_time_sec);
       if (!metric_database->start()) {
          LOG(ERROR) << TAG("start_services")
                   << "Failed to start metric database service\n";
@@ -524,7 +488,7 @@ int main(int argc, char **argv) {
 
    load_configs(argv[1]);
 
-   crate::common::setup_logger("monolith_app", AixLog::Severity::debug);
+   crate::common::setup_logger("monolith_app", AixLog::Severity::trace);
 
    // setup signal handlers
    //
@@ -535,11 +499,6 @@ int main(int argc, char **argv) {
    signal(SIGTRAP, handle_signal); /* Trace trap. */
    signal(SIGABRT, handle_signal); /* Abort. */
    signal(SIGPIPE, signal_ignore_handler);
-
-   if (network_config.use_ipv6) {
-      std::cerr << "IPV6 is not yet supported" << std::endl;
-      std::exit(1);
-   }
 
    start_services();
 

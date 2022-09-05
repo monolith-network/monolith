@@ -46,11 +46,9 @@ class metric_db_c : public service_if {
 
    //! \brief Create the database
    //! \param file The file to open for the database
-   //! \param enable_weekly_limit No metric over 7 days old will remain
-   //! \param enable_rollup Perform database rollups
+   //! \param metric_expiration_time_sec Length of time any metric is allowed to exist (0 = infinite)
    metric_db_c(const std::string &file,
-               bool enable_weekly_limit,
-               bool enable_rollups);
+               uint64_t metric_expiration_time_sec);
 
    //! \brief Close and destroy the database
    virtual ~metric_db_c() override final;
@@ -74,7 +72,7 @@ class metric_db_c : public service_if {
 
  private:
    static constexpr uint16_t MAX_BURST = 100;
-   static constexpr uint64_t ONE_WEEK_IN_SECONDS = 604800;
+   static constexpr uint64_t METRIC_PURGE_CHECK_INTERVAL_SEC = 30;
 
    enum class request_type_e {
       SUBMIT,
@@ -155,18 +153,13 @@ class metric_db_c : public service_if {
    };
 
    std::string _file;
-   bool _limit_weekly{false};
-   bool _perform_rollups{false};
    sqlitelib::Sqlite *_db{nullptr};
    std::mutex _request_queue_mutex;
    std::queue<request_if *> _request_queue;
-   uint64_t _last_purge{0};
-   uint64_t _last_rollup{0};
+   uint64_t _metric_expiration_time_sec{0};
+   uint64_t _last_metric_purge{0};
 
-
-   bool purge_weekly();
-   bool check_rollups();
-   bool perform_rollup(uint64_t start_time, uint64_t end_time);
+   bool purge_metrics();
 
    void run();
    void burst();

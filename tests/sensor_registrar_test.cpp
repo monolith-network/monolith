@@ -21,7 +21,6 @@ namespace {
 
 static constexpr char ADDRESS[] = "0.0.0.0";
 static constexpr uint32_t HTTP_PORT = 8080;
-static constexpr uint32_t DATA_PORT = 4096;
 static constexpr uint32_t RECEIVE_PORT = 5042;
 static constexpr char REGISTRAR_DB[] = "test_registrar.db";
 static constexpr char METRIC_DB[] = "test_metric.db";
@@ -48,8 +47,7 @@ registrar_db = new monolith::db::kv_c(REGISTRAR_DB);
 metric_db = new monolith::services::metric_db_c(METRIC_DB);
 metric_streamer = new monolith::services::metric_streamer_c();
 data_submission = new monolith::services::data_submission_c(
-    monolith::networking::ipv4_host_port_s{ADDRESS, DATA_PORT}, registrar_db,
-    metric_streamer, metric_db,
+    registrar_db, metric_streamer, metric_db,
     nullptr, // No rule executor
     &heartbeat_manager);
 app = new monolith::services::app_c(

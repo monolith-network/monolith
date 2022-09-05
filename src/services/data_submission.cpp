@@ -55,7 +55,9 @@ bool data_submission_c::stop() {
 
          while (!_metric_queue.empty()) {
             auto entry = _metric_queue.front();
-            _database->store(entry.metric);
+            if (_database) {
+               _database->store(entry.metric);
+            }
             _stream_server->submit_metric(entry.metric);
             _metric_queue.pop();
          }

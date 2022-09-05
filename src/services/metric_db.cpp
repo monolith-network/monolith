@@ -8,7 +8,18 @@ namespace services {
 
 using namespace std::chrono_literals;
 
-metric_db_c::metric_db_c(const std::string &file) : _file(file) {}
+namespace {
+uint64_t get_now() {
+   return std::chrono::duration_cast<std::chrono::seconds>(
+              std::chrono::system_clock::now().time_since_epoch())
+       .count();
+}
+}
+
+metric_db_c::metric_db_c(const std::string &file,
+               uint64_t metric_expiration_time_sec) 
+   : _file(file), 
+      _metric_expiration_time_sec(metric_expiration_time_sec) {}
 
 metric_db_c::~metric_db_c() { stop(); }
 
@@ -37,6 +48,23 @@ bool metric_db_c::start() {
    )
    )");
 
+   /*
+      If we've been told that we are purging record > 1 week do so before 
+      we potentially rollup a database that potentially has a lot of records
+   */
+   if (_metric_expiration_time_sec != 0) {
+
+      LOG(INFO) << TAG("metric_db_c::start") 
+                  << "Performing pre-flight metric purge if metrics older than " 
+                  << _metric_expiration_time_sec
+                  << " seconds\n";
+
+      if (!purge_metrics()) {
+         LOG(ERROR) << TAG("metric_db_c::start") << "Failed to remove records > 1 week\n";
+         return false;
+      }
+   }
+
    p_running.store(true);
    p_thread = std::thread(&metric_db_c::run, this);
 
@@ -64,10 +92,33 @@ bool metric_db_c::stop() {
    return true;
 }
 
+/*
+   Perform the purge
+*/
+bool metric_db_c::purge_metrics() {
+   auto now = get_now();
+   auto purge_time = now - _metric_expiration_time_sec;
+   std::string statement = "delete from metrics where timestamp < " + std::to_string(purge_time) + ";";
+   _db->execute(statement.c_str());
+   _last_metric_purge = get_now();
+   return true;
+}
+
 void metric_db_c::run() {
 
    while (p_running.load()) {
       std::this_thread::sleep_for(100ms);
+
+      // Check metric death
+      if (_metric_expiration_time_sec && (get_now() - _last_metric_purge > METRIC_PURGE_CHECK_INTERVAL_SEC)) {
+         LOG(TRACE) << TAG("metric_db_c::run") 
+                     << "Purgin metrics older than `" 
+                     << _metric_expiration_time_sec 
+                     << "` seconds\n";
+         purge_metrics();
+      }
+
+      // Bust out data storage / retrieval requests
       burst();
    }
 }
@@ -100,22 +151,22 @@ void metric_db_c::burst() {
 
       // Determine what the request is attempting to do and route it
       switch (req->type) {
-      case request_type::SUBMIT:
+      case request_type_e::SUBMIT:
          store_metric(static_cast<submission_c *>(req)->entry);
          break;
-      case request_type::FETCH_NODES:
+      case request_type_e::FETCH_NODES:
          fetch_metric(static_cast<fetch_nodes_c *>(req));
          break;
-      case request_type::FETCH_SENSORS:
+      case request_type_e::FETCH_SENSORS:
          fetch_metric(static_cast<fetch_sensors_c *>(req));
          break;
-      case request_type::FETCH_RANGE:
+      case request_type_e::FETCH_RANGE:
          fetch_metric(static_cast<fetch_range_c *>(req));
          break;
-      case request_type::FETCH_AFTER:
+      case request_type_e::FETCH_AFTER:
          fetch_metric(static_cast<fetch_after_c *>(req));
          break;
-      case request_type::FETCH_BEFORE:
+      case request_type_e::FETCH_BEFORE:
          fetch_metric(static_cast<fetch_before_c *>(req));
          break;
       }

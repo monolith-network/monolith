@@ -23,7 +23,6 @@ static constexpr char ADDRESS[] = "0.0.0.0";
 static constexpr uint32_t HTTP_PORT = 8080;
 static constexpr uint32_t RECEIVE_PORT = 5042;
 static constexpr char REGISTRAR_DB[] = "test_registrar.db";
-static constexpr char METRIC_DB[] = "test_metric.db";
 static constexpr char LOGS[] = "test_registrar";
 static constexpr size_t NUM_NODES = 10;
 static constexpr size_t NUM_SENSORS_PER_NODE = 2;
@@ -35,7 +34,6 @@ static constexpr size_t NUM_CONTROLLERS_DELETE = NUM_NODES / 2;
 monolith::db::kv_c *registrar_db{nullptr};
 monolith::services::metric_streamer_c *metric_streamer{nullptr};
 monolith::services::data_submission_c *data_submission{nullptr};
-monolith::services::metric_db_c *metric_db{nullptr};
 monolith::services::app_c *app{nullptr};
 monolith::heartbeats_c heartbeat_manager;
 std::vector<crate::registrar::node_v1_c> nodes;
@@ -44,29 +42,26 @@ std::vector<crate::registrar::controller_v1_c> controllers;
 TEST_GROUP(sensor_registrar_test){
     void setup(){crate::common::setup_logger(LOGS, AixLog::Severity::error);
 registrar_db = new monolith::db::kv_c(REGISTRAR_DB);
-metric_db = new monolith::services::metric_db_c(METRIC_DB);
 metric_streamer = new monolith::services::metric_streamer_c();
 data_submission = new monolith::services::data_submission_c(
-    registrar_db, metric_streamer, metric_db,
+    registrar_db, metric_streamer, nullptr,
     nullptr, // No rule executor
     &heartbeat_manager);
 app = new monolith::services::app_c(
     monolith::networking::ipv4_host_port_s{ADDRESS, HTTP_PORT}, registrar_db,
-    metric_streamer, data_submission, metric_db, &heartbeat_manager,
+    metric_streamer, data_submission, nullptr, &heartbeat_manager,
     nullptr // We don't need a portal for testing
 );
 }
 
 void teardown() {
    delete registrar_db;
-   delete metric_db;
    delete metric_streamer;
    delete data_submission;
    delete app;
 
    std::filesystem::remove_all(std::string(LOGS) + std::string(".log"));
    std::filesystem::remove_all(REGISTRAR_DB);
-   std::filesystem::remove_all(METRIC_DB);
 }
 }
 ;

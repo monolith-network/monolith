@@ -526,17 +526,23 @@ void app_c::handle_fetch(httplib::Response &res, const double timeout,
 void app_c::metric_fetch_nodes(const httplib::Request &req,
                                httplib::Response &res) {
 
+   if (!_metric_db) {
+      res.set_content(get_json_response(return_codes_e::BAD_REQUEST_400, "Metric storage not enabled"), "application/json");
+      return;
+   }
+
    metric_db_c::fetch_response_s *response =
        new metric_db_c::fetch_response_s();
    metric_db_c::fetch_s fetch{.callback = db_cb, .callback_data = response};
 
    // Submit the fetch
-   if (!_metric_db || !_metric_db->fetch_nodes(fetch)) {
+   if (!_metric_db->fetch_nodes(fetch)) {
       LOG(WARNING) << TAG("app_c::metric_fetch_nodes")
                    << "Unable to submit fetch\n";
       res.set_content(get_json_response(return_codes_e::INTERNAL_SERVER_500,
                                         "Failed to submit fetch"),
                       "application/json");
+      delete response;
       return;
    }
 
@@ -547,6 +553,11 @@ void app_c::metric_fetch_nodes(const httplib::Request &req,
 
 void app_c::metric_fetch_sensors(const httplib::Request &req,
                                  httplib::Response &res) {
+   if (!_metric_db) {
+      res.set_content(get_json_response(return_codes_e::BAD_REQUEST_400, "Metric storage not enabled"), "application/json");
+      return;
+   }
+
    if (!valid_http_req(req, res, 2)) {
       return;
    }
@@ -558,12 +569,13 @@ void app_c::metric_fetch_sensors(const httplib::Request &req,
    metric_db_c::fetch_s fetch{.callback = db_cb, .callback_data = response};
 
    // Submit the fetch
-   if (!_metric_db || !_metric_db->fetch_sensors(fetch, node_id)) {
+   if (!_metric_db->fetch_sensors(fetch, node_id)) {
       LOG(WARNING) << TAG("app_c::metric_fetch_sensors")
                    << "Unable to submit fetch\n";
       res.set_content(get_json_response(return_codes_e::INTERNAL_SERVER_500,
                                         "Failed to submit fetch"),
                       "application/json");
+      delete response;
       return;
    }
 
@@ -577,6 +589,12 @@ void app_c::metric_fetch_range(const httplib::Request &req,
    if (!valid_http_req(req, res, 4)) {
       return;
    }
+
+   if (!_metric_db) {
+      res.set_content(get_json_response(return_codes_e::BAD_REQUEST_400, "Metric storage not enabled"), "application/json");
+      return;
+   }
+
    auto node_id = req.matches[1].str();
 
    int64_t start{0};
@@ -605,12 +623,13 @@ void app_c::metric_fetch_range(const httplib::Request &req,
    metric_db_c::fetch_s fetch{.callback = db_cb, .callback_data = response};
 
    // Submit the fetch
-   if (!_metric_db || !_metric_db->fetch_range(fetch, node_id, start, end)) {
+   if (!_metric_db->fetch_range(fetch, node_id, start, end)) {
       LOG(WARNING) << TAG("app_c::metric_fetch_range")
                    << "Unable to submit fetch\n";
       res.set_content(get_json_response(return_codes_e::INTERNAL_SERVER_500,
                                         "Failed to submit fetch"),
                       "application/json");
+      delete response;
       return;
    }
 
@@ -621,6 +640,10 @@ void app_c::metric_fetch_range(const httplib::Request &req,
 
 void app_c::metric_fetch_after(const httplib::Request &req,
                                httplib::Response &res) {
+   if (!_metric_db) {
+      res.set_content(get_json_response(return_codes_e::BAD_REQUEST_400, "Metric storage not enabled"), "application/json");
+      return;
+   }
 
    if (!valid_http_req(req, res, 3)) {
       return;
@@ -650,12 +673,13 @@ void app_c::metric_fetch_after(const httplib::Request &req,
    metric_db_c::fetch_s fetch{.callback = db_cb, .callback_data = response};
 
    // Submit the fetch
-   if (!_metric_db || !_metric_db->fetch_after(fetch, node_id, time)) {
+   if (!_metric_db->fetch_after(fetch, node_id, time)) {
       LOG(WARNING) << TAG("app_c::metric_fetch_after")
                    << "Unable to submit fetch\n";
       res.set_content(get_json_response(return_codes_e::INTERNAL_SERVER_500,
                                         "Failed to submit fetch"),
                       "application/json");
+      delete response;
       return;
    }
 
@@ -666,6 +690,10 @@ void app_c::metric_fetch_after(const httplib::Request &req,
 
 void app_c::metric_fetch_before(const httplib::Request &req,
                                 httplib::Response &res) {
+   if (!_metric_db) {
+      res.set_content(get_json_response(return_codes_e::BAD_REQUEST_400, "Metric storage not enabled"), "application/json");
+      return;
+   }
 
    if (!valid_http_req(req, res, 3)) {
       return;
@@ -695,12 +723,13 @@ void app_c::metric_fetch_before(const httplib::Request &req,
    metric_db_c::fetch_s fetch{.callback = db_cb, .callback_data = response};
 
    // Submit the fetch
-   if (!_metric_db || !_metric_db->fetch_before(fetch, node_id, time)) {
+   if (!_metric_db->fetch_before(fetch, node_id, time)) {
       LOG(WARNING) << TAG("app_c::metric_fetch_before")
                    << "Unable to submit fetch\n";
       res.set_content(get_json_response(return_codes_e::INTERNAL_SERVER_500,
                                         "Failed to submit fetch"),
                       "application/json");
+      delete response;
       return;
    }
 

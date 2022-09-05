@@ -29,27 +29,33 @@ using namespace std::chrono_literals;
 namespace {
 
 /*
-      Monolith configuration
+      Application configuration
 */
-struct monolith_configuration_s {
+struct app_configuration_s {
    std::string instance_name;
    std::string log_file_name;
    std::string registration_db_path;
-   std::string metric_db_path;
 };
-monolith_configuration_s monolith_config;
+app_configuration_s app_config;
 
 /*
       Networking configuration
 */
 struct networking_configuration_s {
-   bool use_ipv6{false};
    std::string ipv4_address;
-   std::string ipv6_address;
    uint32_t http_port{8080};
-   uint32_t registration_port{9001};
 };
 networking_configuration_s network_config;
+
+/*
+      Rules configuration
+*/
+struct dabase_configuration_s {
+   bool save_metrics{false};
+   uint64_t metric_expiration_time_sec{0};
+   std::string path;
+};
+dabase_configuration_s database_config;
 
 /*
       Rules configuration
@@ -139,7 +145,7 @@ void load_configs(std::string file) {
    std::optional<std::string> instance_name =
        tbl["monolith"]["instance_name"].value<std::string>();
    if (instance_name.has_value()) {
-      monolith_config.instance_name = *instance_name;
+      app_config.instance_name = *instance_name;
    } else {
       LOG(ERROR) << TAG("load_config")
                  << "Missing config for 'instance_name'\n";
@@ -149,7 +155,7 @@ void load_configs(std::string file) {
    std::optional<std::string> log_file_name =
        tbl["monolith"]["log_file_name"].value<std::string>();
    if (log_file_name.has_value()) {
-      monolith_config.log_file_name = *log_file_name;
+      app_config.log_file_name = *log_file_name;
    } else {
       LOG(ERROR) << TAG("load_config")
                  << "Missing config for 'log_file_name'\n";
@@ -159,20 +165,10 @@ void load_configs(std::string file) {
    std::optional<std::string> registration_db_path =
        tbl["monolith"]["registration_db_path"].value<std::string>();
    if (registration_db_path.has_value()) {
-      monolith_config.registration_db_path = *registration_db_path;
+      app_config.registration_db_path = *registration_db_path;
    } else {
       LOG(ERROR) << TAG("load_config")
                  << "Missing config for 'registration_db_path'\n";
-      std::exit(1);
-   }
-
-   std::optional<std::string> metric_db_path =
-       tbl["monolith"]["metric_db_path"].value<std::string>();
-   if (metric_db_path.has_value()) {
-      monolith_config.metric_db_path = *metric_db_path;
-   } else {
-      LOG(ERROR) << TAG("load_config")
-                 << "Missing config for 'metric_db_path'\n";
       std::exit(1);
    }
 
@@ -181,29 +177,12 @@ void load_configs(std::string file) {
          Load networking configurations
 
    */
-   std::optional<bool> use_ipv6 = tbl["networking"]["use_ipv6"].value<bool>();
-   if (use_ipv6.has_value()) {
-      network_config.use_ipv6 = *use_ipv6;
-   } else {
-      LOG(ERROR) << TAG("load_config") << "Missing config for 'use_ipv6'\n";
-      std::exit(1);
-   }
-
    std::optional<std::string> ipv4_address =
        tbl["networking"]["ipv4_address"].value<std::string>();
    if (ipv4_address.has_value()) {
       network_config.ipv4_address = *ipv4_address;
    } else {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'ipv4_address'\n";
-      std::exit(1);
-   }
-
-   std::optional<std::string> ipv6_address =
-       tbl["networking"]["ipv6_address"].value<std::string>();
-   if (ipv6_address.has_value()) {
-      network_config.ipv6_address = *ipv6_address;
-   } else {
-      LOG(ERROR) << TAG("load_config") << "Missing config for 'ipv6_address'\n";
       std::exit(1);
    }
 
@@ -214,6 +193,39 @@ void load_configs(std::string file) {
    } else {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'http_port'\n";
       std::exit(1);
+   }
+
+   /*
+
+         Load metric_database configurations
+
+   */
+   std::optional<bool> save_metrics = tbl["metric_database"]["save_metrics"].value<bool>();
+   if (save_metrics.has_value()) {
+      database_config.save_metrics = *save_metrics;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'save_metrics'\n";
+      std::exit(1);
+   }
+
+   std::optional<uint64_t> metric_expiration_time_sec = tbl["metric_database"]["metric_expiration_time_sec"].value<uint64_t>();
+   if (metric_expiration_time_sec.has_value()) {
+      database_config.metric_expiration_time_sec = *metric_expiration_time_sec;
+   } else {
+      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'metric_expiration_time_sec'\n";
+      std::exit(1);
+   }
+
+   if (save_metrics) {
+      std::optional<std::string> metric_db_path =
+         tbl["metric_database"]["path"].value<std::string>();
+      if (metric_db_path.has_value()) {
+         database_config.path = *metric_db_path;
+      } else {
+         LOG(ERROR) << TAG("load_config")
+                  << "Missing metric_database config for 'path'\n";
+         std::exit(1);
+      }
    }
 
    /*
@@ -377,7 +389,7 @@ void start_services() {
    LOG(INFO) << TAG("start_services") << "Starting services\n";
 
    registrar_database =
-       new monolith::db::kv_c(monolith_config.registration_db_path);
+       new monolith::db::kv_c(app_config.registration_db_path);
 
    metric_streamer = new monolith::services::metric_streamer_c();
 
@@ -388,13 +400,16 @@ void start_services() {
       std::exit(1);
    }
 
-   metric_database =
-       new monolith::services::metric_db_c(monolith_config.metric_db_path);
-   if (!metric_database->start()) {
-      LOG(ERROR) << TAG("start_services")
-                 << "Failed to start metric database service\n";
-      cleanup();
-      std::exit(1);
+   if (database_config.save_metrics) {
+      metric_database =
+         new monolith::services::metric_db_c(database_config.path, 
+                                             database_config.metric_expiration_time_sec);
+      if (!metric_database->start()) {
+         LOG(ERROR) << TAG("start_services")
+                  << "Failed to start metric database service\n";
+         cleanup();
+         std::exit(1);
+      }
    }
 
    action_dispatch =
@@ -473,7 +488,7 @@ int main(int argc, char **argv) {
 
    load_configs(argv[1]);
 
-   crate::common::setup_logger("monolith_app", AixLog::Severity::debug);
+   crate::common::setup_logger("monolith_app", AixLog::Severity::trace);
 
    // setup signal handlers
    //
@@ -484,11 +499,6 @@ int main(int argc, char **argv) {
    signal(SIGTRAP, handle_signal); /* Trace trap. */
    signal(SIGABRT, handle_signal); /* Abort. */
    signal(SIGPIPE, signal_ignore_handler);
-
-   if (network_config.use_ipv6) {
-      std::cerr << "IPV6 is not yet supported" << std::endl;
-      std::exit(1);
-   }
 
    start_services();
 

@@ -2,13 +2,15 @@
 instance_name = "monoloth_standard"
 log_file_name = "monolith"
 registration_db_path = "/tmp/monolith_registration.db"
-metric_db_path = "/tmp/monolith_metrics.db"
 
 [networking]
-use_ipv6 = false
 ipv4_address = "0.0.0.0"
-ipv6_address = "::1"
 http_port = 8080
+
+[metric_database]
+path = "/tmp/monolith_metrics.db"
+save_metrics = true
+metric_expiration_time_sec = 604800 # 0 = infinite
 
 [rules]
 rule_script = "rules/default.lua"

@@ -13,16 +13,13 @@
 #include "services/rule_executor.hpp"
 
 #include <crate/metrics/reading_v1.hpp>
-#include <crate/networking/message_receiver_if.hpp>
-#include <crate/networking/message_server.hpp>
 
 /*
 ABOUT:
    This data submission service takes in data from a specified port via
-   a crate::networking::message_server and through the function
-   submit_data (if data is submitted to application over http)
-   and enqueues the data. Periodically it will go through the queued
-   metrics and burst them out in chunks to :
+   the function submit_data and enqueues the data.
+   Periodically it will go through the queued metrics and burst
+   them out in chunks to :
       1) metrics_db_c -> Where they will be written to disk
       2) metric_streamer -> Where they will be queued up to be
          dispersed to any registered metric stream receivers
@@ -32,19 +29,16 @@ namespace monolith {
 namespace services {
 
 //! \brief Create the data submission tool
-class data_submission_c : public service_if,
-                          private crate::networking::message_receiver_if {
+class data_submission_c : public service_if {
  public:
    data_submission_c() = delete;
 
    //! \brief Create the submission client
-   //! \param host_port The ipv4 connection information
    //! \param registrar_db The registrar database
    //! \param metric_streamer Metric streaming service
    //! \param metric_db Metrics database
    //! \param heartbeat_manager Manager for recording heartbeats
-   data_submission_c(const monolith::networking::ipv4_host_port_s &host_port,
-                     monolith::db::kv_c *registrar_db,
+   data_submission_c(monolith::db::kv_c *registrar_db,
                      monolith::services::metric_streamer_c *metric_streamer,
                      monolith::services::metric_db_c *metric_db,
                      monolith::services::rule_executor_c *rule_executor,
@@ -71,13 +65,11 @@ class data_submission_c : public service_if,
       crate::metrics::sensor_reading_v1_c metric;
    };
 
-   monolith::networking::ipv4_host_port_s _host_port;
    monolith::services::metric_streamer_c *_stream_server{nullptr};
    monolith::services::metric_db_c *_database{nullptr};
    monolith::services::rule_executor_c *_rule_executor{nullptr};
    monolith::heartbeats_c *_heartbeat_manager{nullptr};
 
-   crate::networking::message_server_c *_message_server{nullptr};
    std::queue<db_entry_queue> _metric_queue;
    std::mutex _metric_queue_mutex;
 
@@ -86,7 +78,6 @@ class data_submission_c : public service_if,
    void run();
    void check_purge();
    void submit_metrics();
-   virtual void receive_message(std::string message) override final;
 };
 
 } // namespace services

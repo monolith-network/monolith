@@ -47,7 +47,6 @@ struct networking_configuration_s {
    std::string ipv4_address;
    std::string ipv6_address;
    uint32_t http_port{8080};
-   uint32_t metric_submission_port{9000};
    uint32_t registration_port{9001};
 };
 networking_configuration_s network_config;
@@ -214,16 +213,6 @@ void load_configs(std::string file) {
       network_config.http_port = *http_port;
    } else {
       LOG(ERROR) << TAG("load_config") << "Missing config for 'http_port'\n";
-      std::exit(1);
-   }
-
-   std::optional<uint32_t> metric_submission_port =
-       tbl["networking"]["metric_submission_port"].value<uint32_t>();
-   if (metric_submission_port.has_value()) {
-      network_config.metric_submission_port = *metric_submission_port;
-   } else {
-      LOG(ERROR) << TAG("load_config")
-                 << "Missing config for 'metric_submission_port'\n";
       std::exit(1);
    }
 
@@ -434,8 +423,6 @@ void start_services() {
    }
 
    data_submission = new monolith::services::data_submission_c(
-       monolith::networking::ipv4_host_port_s{
-           network_config.ipv4_address, network_config.metric_submission_port},
        registrar_database, metric_streamer, metric_database, rule_executor,
        &heartbeat_manager);
 

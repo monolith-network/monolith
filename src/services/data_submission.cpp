@@ -11,15 +11,14 @@ namespace monolith {
 namespace services {
 
 data_submission_c::data_submission_c(
-    const monolith::networking::ipv4_host_port_s &host_port,
     monolith::db::kv_c *registrar,
     monolith::services::metric_streamer_c *metric_streamer,
     monolith::services::metric_db_c *metric_db,
     monolith::services::rule_executor_c *rule_executor,
     monolith::heartbeats_c *heartbeat_manager)
-    : _host_port(host_port), _registrar(registrar),
-      _stream_server(metric_streamer), _database(metric_db),
-      _rule_executor(rule_executor), _heartbeat_manager(heartbeat_manager) {}
+    : _registrar(registrar), _stream_server(metric_streamer),
+      _database(metric_db), _rule_executor(rule_executor),
+      _heartbeat_manager(heartbeat_manager) {}
 
 bool data_submission_c::start() {
 
@@ -27,17 +26,6 @@ bool data_submission_c::start() {
       LOG(WARNING) << TAG("data_submission_c::start")
                    << "Server already started\n";
       return true;
-   }
-
-   if (!_message_server) {
-      _message_server = new crate::networking::message_server_c(
-          _host_port.address, _host_port.port, this);
-   }
-
-   if (!_message_server->start()) {
-      LOG(WARNING) << TAG("data_submission_c::start")
-                   << "Unable to start message server\n";
-      return false;
    }
 
    p_running.store(true);
@@ -51,12 +39,6 @@ bool data_submission_c::stop() {
 
    if (!p_running.load()) {
       return true;
-   }
-
-   if (_message_server) {
-      _message_server->stop();
-      delete _message_server;
-      _message_server = nullptr;
    }
 
    {
@@ -109,42 +91,6 @@ void data_submission_c::submit_data(crate::metrics::sensor_reading_v1_c &data) {
    {
       const std::lock_guard<std::mutex> lock(_metric_queue_mutex);
       _metric_queue.push({.submission_attempts = 0, .metric = data});
-   }
-}
-
-void data_submission_c::receive_message(std::string metric_data) {
-
-   LOG(INFO) << TAG("data_submission_c::receive_message") << metric_data
-             << "\n";
-
-   if (metric_data.empty()) {
-      return;
-   }
-
-   // Check to see if the metric in question is a heartbeat
-   {
-      crate::metrics::heartbeat_v1_c heartbeat;
-      if (heartbeat.decode_from(metric_data)) {
-         _heartbeat_manager->submit(heartbeat.get_data());
-         LOG(TRACE) << TAG("data_submission_c::receive_message")
-                    << "Received heartbeat from: " << heartbeat.get_data()
-                    << "\n";
-         return;
-      }
-   }
-
-   // Validate the reading
-   crate::metrics::sensor_reading_v1_c reading;
-   if (!reading.decode_from(metric_data)) {
-      LOG(WARNING) << TAG("data_submission_c::receive_message")
-                   << "Failed to decode data: " << metric_data << "\n";
-      return;
-   }
-
-   // Put the reading in the queue
-   {
-      const std::lock_guard<std::mutex> lock(_metric_queue_mutex);
-      _metric_queue.push({.submission_attempts = 0, .metric = reading});
    }
 }
 

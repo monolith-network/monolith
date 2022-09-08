@@ -1,0 +1,28 @@
+[monolith]
+instance_name = "pycrate_standard"
+log_file_name = "pycrate"
+registration_db_path = "/tmp/pycrate_registration.db"
+
+[networking]
+ipv4_address = "0.0.0.0"
+http_port = 8080
+
+[metric_database]
+path = "/tmp/pycrate_metrics.db"
+save_metrics = true
+metric_expiration_time_sec = 604800 # 0 = infinite
+
+[rules]
+rule_script = "rules/pycrate.lua"
+
+[alert]
+max_alert_sends = 0                # 0 = infinite
+alert_cooldown_seconds = 40.0      # Seconds to cool down per alert id
+
+#  Optional setup for sms backend
+#
+# [twilio]
+# account_sid = ""
+# auth_token = ""
+# from = ""
+# to = ""

@@ -12,6 +12,10 @@ path = "/tmp/pycrate_metrics.db"
 save_metrics = true
 metric_expiration_time_sec = 604800 # 0 = infinite
 
+[telnet]
+port = 25565
+access_code = "password123"
+
 [rules]
 rule_script = "rules/pycrate.lua"
 

@@ -21,6 +21,7 @@
 #include "services/metric_db.hpp"
 #include "services/metric_streamer.hpp"
 #include "services/rule_executor.hpp"
+#include "services/telnet.hpp"
 
 #include "version.hpp"
 
@@ -48,7 +49,17 @@ struct networking_configuration_s {
 networking_configuration_s network_config;
 
 /*
-      Rules configuration
+      Telnet configuration
+*/
+struct telnet_configuration_s {
+   uint32_t port{25565};
+   std::string access_code;
+   bool use_telnet {false};
+};
+telnet_configuration_s telnet_config;
+
+/*
+      Database configuration
 */
 struct dabase_configuration_s {
    bool save_metrics{false};
@@ -93,6 +104,7 @@ monolith::services::metric_db_c *metric_database{nullptr};
 monolith::services::rule_executor_c *rule_executor{nullptr};
 monolith::services::action_dispatch_c *action_dispatch{nullptr};
 monolith::services::metric_streamer_c *metric_streamer{nullptr};
+monolith::services::telnet_c *telnet{nullptr};
 monolith::services::app_c *app_service{nullptr};
 
 /*
@@ -251,6 +263,34 @@ void load_configs(std::string file) {
 
    /*
 
+         Load telnet configurations
+
+   */
+   std::optional<uint32_t> telnet_port =
+       tbl["telnet"]["port"].value<uint32_t>();
+   if (telnet_port.has_value()) {
+      telnet_config.port = *telnet_port;
+      telnet_config.use_telnet = true;
+   }
+
+   if (telnet_config.use_telnet) {
+      std::optional<std::string> telnet_access_code =
+         tbl["telnet"]["access_code"].value<std::string>();
+      if (telnet_access_code.has_value()) {
+         telnet_config.access_code = *telnet_access_code;
+      } else {
+         LOG(ERROR) << TAG("load_config") << "Missing config for telnet 'access code'\n";
+         std::exit(1);
+      }
+
+      if (telnet_config.access_code.empty()) {
+         LOG(ERROR) << TAG("load_config") << "Telnet access code can not be empty\n";
+         std::exit(1);
+      }
+   }
+
+   /*
+
          Load alert configurations
 
    */
@@ -349,6 +389,11 @@ void load_configs(std::string file) {
 
 void cleanup() {
 
+   if (telnet) {
+      telnet->stop();
+      delete telnet;
+   }
+
    if (app_service) {
       app_service->stop();
       delete app_service;
@@ -446,6 +491,26 @@ void start_services() {
                  << "Failed to start data submission server\n";
       cleanup();
       std::exit(1);
+   }
+
+   if (telnet_config.use_telnet) {
+
+      LOG(WARNING) << TAG("start_services") 
+                << "Telnet has been enabled.\n Please ensure that port rules on the machine doesn't expose port `" 
+                << telnet_config.port << "` to be public facing.\n Telnet is not a secure protocol."
+                << "\n Telnet should only be used to locally reconfigure and control a running intstance of Monolith.\n";
+
+      telnet = new monolith::services::telnet_c(telnet_config.access_code, 
+         monolith::networking::ipv4_host_port_s("0.0.0.0", telnet_config.port),
+         rule_executor
+      );
+
+      if (!telnet->start()) {
+         LOG(ERROR) << TAG("start_services")
+                  << "Failed to start telnet server\n";
+         cleanup();
+         std::exit(1);
+      }
    }
 
    portal = new monolith::portal::portal_c(registrar_database, metric_database);

@@ -7,6 +7,10 @@ registration_db_path = "/tmp/monolith_registration.db"
 ipv4_address = "0.0.0.0"
 http_port = 8080
 
+[telnet]
+port = 25565
+access_code = "password123"
+
 [metric_database]
 path = "/tmp/monolith_metrics.db"
 save_metrics = true

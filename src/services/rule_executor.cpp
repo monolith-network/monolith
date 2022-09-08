@@ -118,6 +118,24 @@ int lua_monolith_dispatch_action(lua_State *L) {
 }
 
 /*
+   Setup lua
+*/
+void setup_lua() {
+   L = luaL_newstate();
+   luaL_openlibs(L);
+   lua_register(L, "monolith_trigger_alert", lua_monolith_trigger_alert);
+   lua_register(L, "monolith_dispatch_action", lua_monolith_dispatch_action);
+}
+
+/*
+   Close lua
+*/
+void close_lua() {
+   lua_close(L);
+   L = nullptr;
+}
+
+/*
    Setup file statics
 */
 void setup_statics(
@@ -128,10 +146,7 @@ void setup_statics(
       return;
    }
 
-   L = luaL_newstate();
-   luaL_openlibs(L);
-   lua_register(L, "monolith_trigger_alert", lua_monolith_trigger_alert);
-   lua_register(L, "monolith_dispatch_action", lua_monolith_dispatch_action);
+   setup_lua();
 
    alert_manager = new monolith::alert::alert_manager_c(alert_config);
    action_dispatcher = dispatcher;
@@ -146,12 +161,13 @@ void cleanup_statics() {
       return;
    }
 
-   lua_close(L);
-   L = nullptr;
+   close_lua();
+
    delete alert_manager;
    alert_manager = nullptr;
    delete action_dispatcher;
    action_dispatcher = nullptr;
+   setup.store(false);
 }
 } // namespace
 
@@ -261,6 +277,20 @@ bool rule_executor_c::stop() {
       p_thread.join();
    }
 
+   return true;
+}
+
+bool rule_executor_c::reload() {
+
+   const std::lock_guard<std::mutex> lock(_reading_queue_mutex);
+   close_lua();
+   setup_lua();
+   file_open.store(false);
+   if (!open()) {
+      LOG(FATAL) << TAG("rule_executor_c::reload") << "Failed to re-open lua file\n";
+      stop();
+      return false;
+   }
    return true;
 }
 

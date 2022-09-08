@@ -110,9 +110,9 @@ void metric_db_c::run() {
       std::this_thread::sleep_for(100ms);
 
       // Check metric death
-      if (_metric_expiration_time_sec && (get_now() - _last_metric_purge > METRIC_PURGE_CHECK_INTERVAL_SEC)) {
+      if (_metric_expiration_time_sec && (get_now() - _last_metric_purge > _metric_expiration_time_sec)) {
          LOG(TRACE) << TAG("metric_db_c::run") 
-                     << "Purgin metrics older than `" 
+                     << "Purging metrics older than `" 
                      << _metric_expiration_time_sec 
                      << "` seconds\n";
          purge_metrics();

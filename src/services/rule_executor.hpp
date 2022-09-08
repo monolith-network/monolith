@@ -3,6 +3,7 @@
 
 #include "alert/alert.hpp"
 #include "interfaces/service_if.hpp"
+#include "interfaces/reloadable_if.hpp"
 #include "services/action_dispatch.hpp"
 #include <compare>
 #include <crate/metrics/reading_v1.hpp>
@@ -12,7 +13,7 @@ namespace monolith {
 namespace services {
 
 //! \brief Rule execution object
-class rule_executor_c : public service_if {
+class rule_executor_c : public service_if, public reloadable_if {
  public:
    rule_executor_c() = delete;
 
@@ -40,6 +41,9 @@ class rule_executor_c : public service_if {
    // From service_if
    virtual bool start() override final;
    virtual bool stop() override final;
+
+   // From reloadable_if
+   virtual bool reload() override final;
 
  private:
    static constexpr uint8_t MAX_BURST = 100;

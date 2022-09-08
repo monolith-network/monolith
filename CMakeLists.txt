@@ -87,6 +87,7 @@ set(SERVICES_SOURCES
    ${CMAKE_SOURCE_DIR}/src/services/metric_streamer.cpp
    ${CMAKE_SOURCE_DIR}/src/services/rule_executor.cpp
    ${CMAKE_SOURCE_DIR}/src/services/action_dispatch.cpp
+   ${CMAKE_SOURCE_DIR}/src/services/telnet.cpp
    ${CMAKE_SOURCE_DIR}/src/services/app.cpp
 )
 

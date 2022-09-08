@@ -11,8 +11,9 @@ sensor_id_internal_motion = "internal_motion"
 sensor_id_internal_light = "internal_light"
 
 -- Controllers and actions on device emulator
-led_controller = "red_led_controller"
-led_controller_set = "set_led"
+controller_id = "weather_station_controller"
+nightlight_action = "set_night_light"
+movement_action = "movement_detected"
 
 --
 -- Light sensor object
@@ -31,11 +32,12 @@ function InternalLightSensorMonitor:report(value)
       monolith_trigger_alert(0, "Internal light - light no longer detected")
 
       -- Turn on the night light
-      monolith_dispatch_action(led_controller, led_controller_set, 1.0)
+      monolith_dispatch_action(controller_id, nightlight_action, 1.0)
    end
    if value == 1.0 then 
       print("Internal light - light detected")
       monolith_trigger_alert(1, "Internal light - light detected")
+      monolith_dispatch_action(controller_id, nightlight_action, 0.0)
    end
 end
 
@@ -53,6 +55,7 @@ end
 function InternalMotionSensorMonitor:report(value)
    if value == 1.0 then
       monolith_trigger_alert(2, "Internal motion - motion detected")
+      monolith_dispatch_action(controller_id, movement_action, 1.0)
    end
 end
 

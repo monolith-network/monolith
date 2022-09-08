@@ -488,7 +488,7 @@ int main(int argc, char **argv) {
 
    load_configs(argv[1]);
 
-   crate::common::setup_logger("monolith_app", AixLog::Severity::debug);
+   crate::common::setup_logger("monolith_app", AixLog::Severity::trace);
 
    // setup signal handlers
    //

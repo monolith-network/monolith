@@ -295,6 +295,12 @@ void app_c::version(const httplib::Request &req, httplib::Response &res) {
 void app_c::metric_stream_add(const httplib::Request &req,
                               httplib::Response &res) {
 
+   if (!_metric_streamer) {
+      res.set_content(get_json_response(return_codes_e::BAD_REQUEST_400, "streamer service is disabled"),
+                     "application/json");
+      return;
+   }
+
    if (!valid_http_req(req, res, 3)) {
       return;
    }
@@ -322,6 +328,13 @@ void app_c::metric_stream_add(const httplib::Request &req,
 
 void app_c::metric_stream_delete(const httplib::Request &req,
                                  httplib::Response &res) {
+
+   if (!_metric_streamer) {
+      res.set_content(get_json_response(return_codes_e::BAD_REQUEST_400, "streamer service is disabled"),
+                     "application/json");
+      return;
+   }
+
    if (!valid_http_req(req, res, 3)) {
       return;
    }
@@ -586,12 +599,13 @@ void app_c::metric_fetch_sensors(const httplib::Request &req,
 
 void app_c::metric_fetch_range(const httplib::Request &req,
                                httplib::Response &res) {
-   if (!valid_http_req(req, res, 4)) {
-      return;
-   }
 
    if (!_metric_db) {
       res.set_content(get_json_response(return_codes_e::BAD_REQUEST_400, "Metric storage not enabled"), "application/json");
+      return;
+   }
+
+   if (!valid_http_req(req, res, 4)) {
       return;
    }
 

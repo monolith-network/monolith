@@ -58,7 +58,12 @@ bool data_submission_c::stop() {
             if (_database) {
                _database->store(entry.metric);
             }
-            _stream_server->submit_metric(entry.metric);
+            if (_stream_server) {
+               _stream_server->submit_metric(entry.metric);
+            }
+            if (_rule_executor) {
+               _rule_executor->submit_metric(entry.metric);
+            }
             _metric_queue.pop();
          }
       }
@@ -196,7 +201,7 @@ void data_submission_c::submit_metrics() {
       // Submit to stream server - it may be stopped or otherwise not accepting
       // metrics so we re enqueue it if thats the case
       //
-      if (!_stream_server->submit_metric(entry.metric)) {
+      if (_stream_server && !_stream_server->submit_metric(entry.metric)) {
 
          // Check to see if the submission attempts indicate that we need to
          // drop the thing

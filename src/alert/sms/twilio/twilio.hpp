@@ -4,6 +4,7 @@
 #include "interfaces/sms_backend_if.hpp"
 #include <atomic>
 #include <string>
+#include <vector>
 
 namespace monolith {
 namespace sms {
@@ -16,7 +17,7 @@ class twilio_c : public monolith::sms_backend_if {
       std::string account_id; // The account id for login
       std::string auth_token; // The token needed to login
       std::string from;       // Number origin
-      std::string to;         // Destination number
+      std::vector<std::string> to;         // Destination number
    };
 
    twilio_c() = delete;
@@ -39,6 +40,8 @@ class twilio_c : public monolith::sms_backend_if {
    static size_t _null_write(char *, size_t, size_t, void *);
    // Write curl response to a stringstream
    static size_t _stream_write(char *, size_t, size_t, void *);
+
+   bool perform_send(std::string to, std::string message);
 };
 
 } // namespace sms

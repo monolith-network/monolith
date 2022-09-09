@@ -91,7 +91,16 @@ bool twilio_c::teardown() {
 // Some adaptations were made to use local config file
 // and the logging system
 bool twilio_c::send_message(std::string message) {
+   for (auto& destination_number : _config.to) {
+      if (!perform_send(destination_number, message)) {
+         return false;
+      }
+   }
+   return true;
+}
 
+bool twilio_c::perform_send(std::string to, std::string message) {
+   
    if (!_is_setup.load()) {
       LOG(ERROR) << TAG("twilio_c::send_message") << "Backend not yet setup\n";
       return false;
@@ -134,7 +143,7 @@ bool twilio_c::send_message(std::string message) {
 
    std::stringstream parameters;
    std::string parameter_string;
-   parameters << "To=" << _config.to << "&From=" << _config.from
+   parameters << "To=" << to << "&From=" << _config.from
               << "&Body=" << message_escaped;
 
    parameter_string = parameters.str();

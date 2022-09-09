@@ -15,7 +15,7 @@ telnet_access_code = "password123"
 save_metrics = true
 path = "/tmp/monolith_metrics.db"
 metric_expiration_time_sec = 604800 # 0 = infinite
-enable_metric_streamer = true
+stream_metrics = true
 
 [alerts]
 max_alert_sends = 0                # 0 = infinite

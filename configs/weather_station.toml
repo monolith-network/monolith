@@ -2,31 +2,22 @@
 instance_name = "weather_station"
 log_file_name = "weather_station"
 registration_db_path = "/tmp/weather_station_registrar.db"
+rule_script = "rules/weather_station.lua"
 
 [networking]
 ipv4_address = "0.0.0.0"
 http_port = 8081
+telnet_enabled = true
+telnet_port = 25565
+telnet_access_code = "weatherman123"
 
-[metric_database]
+[metrics]
 path = "/tmp/weather_station_metrics.db"
 save_metrics = true
 metric_expiration_time_sec = 0 # 0 = infinite
-
-[telnet]
-port = 25565
-access_code = "password123"
-
-[rules]
-rule_script = "rules/weather_station.lua"
+enable_metric_streamer = true
 
 [alert]
 max_alert_sends = 0                # 0 = infinite
 alert_cooldown_seconds = 60.0      # Seconds to cool down per alert id
 
-#  Optional setup for sms backend
-#
-# [twilio]
-# account_sid = ""
-# auth_token = ""
-# from = ""
-# to = ""

@@ -2,6 +2,7 @@
 #include <crate/externals/aixlog/logger.hpp>
 
 #include "version.hpp"
+#include "host_info.hpp"
 
 namespace monolith {
 namespace services {
@@ -88,6 +89,7 @@ login <password>     - Log into monolith
 --- The following require a user log in ---
 
 version              - Get the version information
+hardware             - Get hardware information
 stats                - Retrieve statistics
 reload <target>      - Reload a given target
    valid targets:
@@ -228,6 +230,13 @@ std::string telnet_c::server_c::handle_cmd(admin_conn_c& conn, std::vector<std::
       return "TODO: Return runtime statistics";
    }
    
+   /*
+         Statistics Info
+   */
+   if (command[0] == "hardware") {
+      return hardware::get_info();
+   }
+
    /*
          Reload items
    */

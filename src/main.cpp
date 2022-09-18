@@ -260,11 +260,11 @@ void load_configs(std::string file) {
    }
 
    // Check if we want the ability to stream metrics
-   std::optional<bool> stream_metrics = tbl["metrics"]["enable_metric_streamer"].value<bool>();
+   std::optional<bool> stream_metrics = tbl["metrics"]["stream_metrics"].value<bool>();
    if (stream_metrics.has_value()) {
       metrics_config.stream_metrics = *stream_metrics;
    } else {
-      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'enable_metric_streamer'\n";
+      LOG(ERROR) << TAG("load_config") << "Missing metric_database config for 'stream_metrics'\n";
       std::exit(1);
    }
 

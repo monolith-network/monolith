@@ -15,9 +15,9 @@ telnet_access_code = "weatherman123"
 path = "/tmp/weather_station_metrics.db"
 save_metrics = true
 metric_expiration_time_sec = 0 # 0 = infinite
-enable_metric_streamer = true
+stream_metrics = true
 
-[alert]
+[alerts]
 max_alert_sends = 0                # 0 = infinite
 alert_cooldown_seconds = 60.0      # Seconds to cool down per alert id
 

@@ -67,7 +67,13 @@ include("cmake/CheckGit.cmake")
 #
 #  Ensure that tld includes available everywhere
 #
-include_directories(${CMAKE_SOURCE_DIR}/src)
+include_directories(${CMAKE_SOURCE_DIR}/src
+                    ${CMAKE_SOURCE_DIR}/src/third_party/hwinfo/include)
+
+#
+# Add third party directories for app
+#
+add_subdirectory(src/third_party/hwinfo)
 
 #
 #  Sources
@@ -96,6 +102,7 @@ set(PORTAL_SOURCES
 )
 
 set(TLD_SOURCES
+   ${CMAKE_SOURCE_DIR}/src/host_info.cpp
    ${CMAKE_SOURCE_DIR}/src/version.cpp
    ${CMAKE_SOURCE_DIR}/src/heartbeats.cpp
 )
@@ -106,6 +113,7 @@ set(TLD_SOURCES
 if(COMPILE_TESTS)
    add_subdirectory(tests)
 endif()
+
 
 #
 #  Create the app
@@ -128,6 +136,7 @@ target_link_libraries(monolith
         ${NETTLE_LIBRARIES}
         ${SQLite3_LIBRARIES}
         ${CURL_LIBRARIES}
+        hwinfo::HWinfo
         Threads::Threads
         lua5.3
         rocksdb

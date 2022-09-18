@@ -24,6 +24,7 @@
 #include "services/telnet.hpp"
 
 #include "version.hpp"
+#include "host_info.hpp"
 
 using namespace std::chrono_literals;
 
@@ -561,8 +562,14 @@ void display_version_info() {
 int main(int argc, char **argv) {
 
    if (argc != 2) {
-      std::cout << "Usage : " << argv[0] << " <config>.toml" << std::endl;
+      std::cout << "Usage : " << argv[0] << " [ <config>.toml | info ]" << std::endl;
       return 1;
+   }
+
+   if (std::string(argv[1]) == "info") {
+      display_version_info();
+      std::cout << monolith::hardware::get_info() << std::endl;
+      return 0;
    }
 
    load_configs(argv[1]);

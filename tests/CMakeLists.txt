@@ -25,6 +25,7 @@ target_link_libraries(monolith-tests
         ${CRATE_LIBRARIES}
         ${NETTLE_LIBRARIES}
         ${SQLite3_LIBRARIES}
+        hwinfo::HWinfo
         libutil
         Threads::Threads
         lua5.3
